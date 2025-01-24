@@ -12,6 +12,7 @@ import os
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader, TensorDataset, random_split
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 ###############################################################################
@@ -40,8 +41,7 @@ def train(model, train_loader, test_loader, criterion, optimizer, num_epochs=50)
     for epoch in range(num_epochs):
         running_loss = 0.0
         for inputs, labels in train_loader:
-            #inputs = inputs.unsqueeze(0)
-            #print(f"shape of input is: {inputs.shape}")
+            inputs, labels = inputs.to(device), labels.to(device)
             optimizer.zero_grad()
             outputs = model(inputs)
             loss = criterion(outputs, labels)
@@ -77,8 +77,7 @@ def test(model, loader):
     total = 0
     with torch.no_grad():
         for inputs, labels in loader:
-           
-            #print(f"shape of input is: {inputs.shape}")
+            inputs, labels = inputs.to(device), labels.to(device)
             outputs = model(inputs)
             _, predicted = torch.max(outputs, 1)
             total += labels.size(0)
