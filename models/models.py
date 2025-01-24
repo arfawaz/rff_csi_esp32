@@ -5,7 +5,14 @@ Created on Thu Jan 23 20:16:46 2025
 
 @author: fawaz
 """
+###############################################################################
+#imports
+import torch.nn as nn
+import torch
+from torchvision.models import ResNet50_Weights
+from torchvision import models
 
+###############################################################################
 ###############################################################################
 #Simple CNN model 
 
