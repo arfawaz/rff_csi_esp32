@@ -9,9 +9,14 @@ Created on Sat Jan 18 16:53:25 2025
 '''
 This function is used to capture the csi data written on the standard input (displayed on terminal)
 by the ESP32 configured either as an ap or sta. This function can be called from the command
-line by piping the standard output to the this python script.
+line by piping the standard output to the this python script. You can use this script on from the
+command line by the following command:
+    
+    some_command_providing_csi_data | python3 csi_capture.py output_file.csv
+
 
 '''
+
 
 ## PYTHON IMPORTS
 
@@ -20,11 +25,15 @@ import sys  # Module for system-specific parameters and functions
 import re  # Module for regular expression operations
 
 
-## parse_and_write_to_csv fucntion 
-def parse_and_write_to_csv(input_line):
+## parse_and_write_to_csv function 
+def parse_and_write_to_csv(input_line, csv_filename):
     """
     This function processes a single input line, extracts the MAC address and CSI data using a regex,
-    and writes them into a CSV file.
+    and writes them into a specified CSV file.
+
+    Args:
+    - input_line (bytes): A single line of binary input from standard input.
+    - csv_filename (str): The path to the CSV file where data should be written.
     """
     try:
         # Decode the input binary line to a UTF-8 string, ignoring any decoding errors
@@ -45,9 +54,6 @@ def parse_and_write_to_csv(input_line):
             mac_address = match.group(1)
             csi_data = match.group(2)
 
-            # Specify the output CSV file where data will be stored
-            csv_filename = "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/esp32/esp32_csi_tool/ESP32-CSI-Tool/active_ap/custom_data_collection/all_macid.csv"
-
             # Open the CSV file in append mode ('a') and write the extracted data
             with open(csv_filename, 'a', newline='') as csvfile:
                 csvwriter = csv.writer(csvfile)  # Create a CSV writer object
@@ -63,8 +69,18 @@ def parse_and_write_to_csv(input_line):
         # Catch and print any exceptions that occur during processing
         print(f"Error processing line: {e}")
 
-## Read input lines from standard input (binary mode) to handle potentially non-UTF-8 data.
+## MAIN EXECUTION
+
+# Check if a CSV file name is provided as a command-line argument
+if len(sys.argv) < 2:
+    print("Usage: python3 script_name.py <output_csv_file>")
+    sys.exit(1)
+
+# Get the CSV file name from the command-line arguments
+csv_filename = sys.argv[1]
+
+# Read input lines from standard input (binary mode) to handle potentially non-UTF-8 data.
 with sys.stdin.buffer as binary_input:
     for binary_line in binary_input:
         # Process each binary line by passing it to the `parse_and_write_to_csv` function
-        parse_and_write_to_csv(binary_line)
+        parse_and_write_to_csv(binary_line, csv_filename)
