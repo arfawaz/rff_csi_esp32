@@ -118,7 +118,7 @@ wait_for_usb() {
 start_data_collection() {
     echo "Starting data collection for $DATA_COLLECTION_TIME seconds..."
     idf.py -p "$IDF_USB" monitor | python3 /home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/utilities/capture_csi.py \
-        /home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/csi_data_collected/02_feb_2025/csi_antenna_test.csv &
+        /home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/csi_data_collected/esp_printed_antenna/04_feb_2025/csi_printed_05_feb_2.csv &
     COLLECT_PID=$!
     sleep $DATA_COLLECTION_TIME
     kill $COLLECT_PID
