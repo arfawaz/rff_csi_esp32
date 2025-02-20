@@ -147,27 +147,3 @@ def parse_csi_amp_phase_fft_plot(file_path, target_macs, subcarriers, cutoff_fre
         plt.legend()
         plt.grid(True)
         plt.show()
-
-file_path = "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/csi_data_collected/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_16_feb_3.csv"
-#target_macs = ["34:5F:45:A9:A4:19"]
-
-target_macs = ["00:FC:BA:38:4B:00", \
-"00:FC:BA:38:4B:01", \
-"00:FC:BA:38:4B:02"]
-   
-#target_macs = ["34:5F:45:A9:A4:19" , "34:5F:45:A8:3C:19", "20:43:A8:64:3A:C1"]  # List of MAC addresses
-selected_subcarriers = [40]
-start_sample = 1000
-end_sample = 1100
-
-parse_csi_amp_phase_fft_plot(
-    file_path=file_path,
-    target_macs=target_macs,
-    subcarriers=selected_subcarriers,
-    cutoff_freq=0.1,
-    start_time=start_sample,
-    end_time=end_sample,
-    plot_raw=True,
-    plot_fil=True,
-    plot_phase=False
-)
