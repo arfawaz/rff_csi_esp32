@@ -53,11 +53,3 @@ def count_mac_occurrences(csv_file, n):
         print(f"\nCount for the least number in these {n} MAC IDs:", least_count)
 
 
-
-
-#%%
-
-# Example usage
-csv_filename = "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/csi_data_collected/esp_printed_antenna/04_feb_2025/csi_printed_11_feb_1.csv"  # Replace with your actual file name
-n = 10  # Adjust this value as needed
-count_mac_occurrences(csv_filename, n)
