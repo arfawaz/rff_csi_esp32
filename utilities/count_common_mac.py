@@ -97,7 +97,7 @@ def count_common_mac_occurrences(list_of_file_paths, number_of_top_mac_ids, mini
             print(f"\nMAC ID with the least occurrences in the filtered list: {least_mac} ({least_count} samples)")
         else:
             print("\nNo MAC IDs meet the minimum_number_of_samples requirement.")
-        return filtered_mac_ids
+        return
 
 # Example Usage
 list_of_files =  [ \
@@ -115,6 +115,6 @@ list_of_files =  [ \
     
 number_of_top_mac_ids = 11
 minimum_samples = 5001 # Set an integer value if filtering by sample count is needed
-filered = count_common_mac_occurrences(list_of_files, number_of_top_mac_ids, minimum_samples)
+count_common_mac_occurrences(list_of_files, number_of_top_mac_ids, minimum_samples)
 
 
