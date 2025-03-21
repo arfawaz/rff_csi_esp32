@@ -5,6 +5,7 @@ Created on Fri Mar 21 00:29:56 2025
 
 @author: fawaz
 """
+import os
 
 def get_n_csv_filepaths(folder_path, n):
     """
