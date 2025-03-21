@@ -1487,9 +1487,212 @@ parse_csi_csv(
 
 
 
+#%%
+
+import os
+
+def get_n_csv_filepaths(folder_path, n):
+    """
+    Retrieves the first 'n' CSV file paths from the given folder and formats them as a Python list.
+    
+    Args:
+    folder_path (str): The path to the folder containing CSV files.
+    n (int): The number of file paths to retrieve.
+
+    Returns:
+    None: Prints the formatted list of file paths.
+    """
+    
+    # Get a sorted list of all CSV files in the folder
+    csv_files = sorted([f for f in os.listdir(folder_path) if f.endswith(".csv")])
+    
+    # Get the full file paths
+    csv_file_paths = [os.path.join(folder_path, f) for f in csv_files[:n]]
+    
+    # Format output for easy copy-pasting as a Python list
+    if csv_file_paths:
+        print("[")
+        for i, path in enumerate(csv_file_paths):
+            if i < len(csv_file_paths) - 1:
+                print(f'    "{path}", \\')
+            else:
+                print(f'    "{path}"')
+        print("]")
+
+# Example usage: Directly calling the function
+folder_path = "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025"
+n = 5  # Number of files you want to retrieve
+
+get_n_csv_filepaths(folder_path, n)
+
+#%% esp32 systematic data experiments
+
+#IMPORTS
+from count_common_mac import count_common_mac_occurrences
+from amp_phase_fft_plot import parse_csi_amp_phase_fft_plot
+from csv_merge import combine_csv_files
+from mac_id_counter import count_mac_occurrences
+from get_n_csv_filepaths import get_n_csv_filepaths
+
+from csi_dataset_creator_fixed_id import process_csv_fixed_id
+from csi_dataset_creator_fixed_id_uniform_sampling import process_csv_fixed_id_uniform_sampling
+from csi_dataset_creator import process_csv
+from mean_norm import mean_norm
+from train_test import train, test
+from train_test_loader import train_test_loader
+from models import SimpleCNN
+import torch.nn as nn
+import torch
+import torch.optim as optim
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
+
+#%% 
+
+list_of_file_paths = [ \
+    "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/systematic_collection/24_feb_25_p3_04_31_05_15.csv", \
+    "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/systematic_collection/24_feb_25_p4_05_17_06_55.csv", \
+    "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/systematic_collection/24_feb_25_p5_07_00_09_00.csv", \
+    "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/systematic_collection/25_feb_25_p6_1_00_01_15.csv", \
+    "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/systematic_collection/25_feb_25_p7_01_15_03_00.csv", \
+    "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/systematic_collection/25_feb_25_p4_03_05_05_00.csv", \
+    "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/systematic_collection/25_feb_25_p5_05_05_07_00.csv", \
+    "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/systematic_collection/25_feb_25_p6_07_05_09_00.csv", \
+    "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/systematic_collection/26_feb_25_p3_01_00_01_50.csv", \
+    "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/systematic_collection/26_feb_25_p4_05_00_07_00.csv", \
+    "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/systematic_collection/26_feb_25_p5_07_00_.csv", \
+    "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/systematic_collection/27_feb_25_p4_11_50_01_05.csv", \
+    "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/systematic_collection/27_feb_25_p5_01_10_01_45.csv", \
+    "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/systematic_collection/27_feb_25_p5_02_50_.csv", \
+    "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/systematic_collection/27_feb_25_p6_03_15_05_00.csv", \
+    "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/systematic_collection/27_feb_25_p7_05_00_07_00.csv", \
+    "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/systematic_collection/27_feb_25_p8_07_10_09_00.csv", \
+    "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/systematic_collection/28_feb_25_p7_04_40_.csv", \
+    "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/systematic_collection/28_feb_25_p8_05_15_07_00.csv", \
+    "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/systematic_collection/28_feb_25_p9_07_00_9_00.csv" \
+]
+
+count_common_mac_occurrences(list_of_file_paths, number_of_top_mac_ids=15, minimum_number_of_samples=None)
+
+output_file =  "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/test/systemtic_first_20_merged/merged.csv"   
+combine_csv_files(file_paths= list_of_file_paths, output_file=output_file)
+
+
+#%% Training and Testing 
+
+# Prompt the user for the file path
+file_path = input("Please enter the file path to the CSV file: ")
+
+# Process the CSV file
+data, labels = process_csv_fixed_id_uniform_sampling(file_path = file_path , mac_id_list = \
+[
+"6C:B2:AE:39:1A:A0", \
+"6C:B2:AE:39:1A:A1", \
+"6C:B2:AE:39:1A:A2", \
+"00:FC:BA:38:4B:00", \
+"00:FC:BA:38:4B:01", \
+"00:FC:BA:38:4B:02", \
+"FE:19:28:38:54:40", \
+"70:0F:6A:DE:EC:A0", \
+"70:0F:6A:DE:EC:A1", \
+"70:0F:6A:DE:EC:A2", \
+"C8:28:E5:44:3B:00", \
+"00:FC:BA:27:63:00", \
+"00:FC:BA:27:63:01", \
+"00:FC:BA:27:63:02", \
+"70:0F:6A:FC:51:81" \
+], max_samples_per_mac=18000)
+data = data.unsqueeze(1)
+dataset = mean_norm(data)
+train_loader, test_loader = train_test_loader(dataset, labels)
+
+num_classes = 15
+learning_rate = 0.001
+num_epochs = 50
+
+# Model setup
+model = SimpleCNN(num_classes)
+model = model.to(device)
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+
+# Model Training
+model.train()
+train(model=model, train_loader=train_loader, test_loader=test_loader, criterion=criterion, optimizer=optimizer, num_epochs=num_epochs)
+
+# Model Testing
+model.eval()
+_ = test(model, test_loader)
 
 
 
+#%% Testing on new test dataset
+
+file_path = input("Please enter the file path to the test CSV file: ")
+data, labels = process_csv_fixed_id_uniform_sampling(file_path = file_path , mac_id_list = [ \
+"6C:B2:AE:39:1A:A0", \
+"6C:B2:AE:39:1A:A1", \
+"6C:B2:AE:39:1A:A2", \
+"00:FC:BA:38:4B:00", \
+"00:FC:BA:38:4B:01", \
+"00:FC:BA:38:4B:02", \
+"FE:19:28:38:54:40", \
+"70:0F:6A:DE:EC:A0", \
+"70:0F:6A:DE:EC:A1", \
+"70:0F:6A:DE:EC:A2", \
+"C8:28:E5:44:3B:00", \
+"00:FC:BA:27:63:00", \
+"00:FC:BA:27:63:01", \
+"00:FC:BA:27:63:02", \
+"70:0F:6A:FC:51:81" \
+], max_samples_per_mac=5000)
+data = data.unsqueeze(1)
+dataset = mean_norm(data)
+train_loader, test_loader = train_test_loader(dataset, labels)
+
+model.eval()
+_ = test(model, train_loader)
 
 
+#%%
 
+import os
+
+def get_n_csv_filepaths(folder_path, n):
+    """
+    Retrieves the first 'n' CSV file paths from the given folder based on modification date 
+    (oldest files first, most recently modified file last) and formats them as a Python list.
+
+    Args:
+    folder_path (str): The path to the folder containing CSV files.
+    n (int): The number of file paths to retrieve.
+
+    Returns:
+    None: Prints the formatted list of file paths.
+    """
+    
+    # Get all CSV files in the folder with their full paths
+    csv_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith(".csv")]
+    
+    # Sort files based on modification time (oldest first)
+    csv_files.sort(key=lambda x: os.path.getmtime(x))
+
+    # Select the first 'n' files
+    csv_file_paths = csv_files[:n]
+    
+    # Format output for easy copy-pasting as a Python list
+    if csv_file_paths:
+        print("[")
+        for i, path in enumerate(csv_file_paths):
+            if i < len(csv_file_paths) - 1:
+                print(f'    \"{path}\", \\')
+            else:
+                print(f'    \"{path}\"')
+        print("]")
+
+# Example usage:
+folder_path = "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/systematic_collection"  # Change this to your actual folder path
+n = 20 # Change this to the desired number of files
+
+get_n_csv_filepaths(folder_path, n)
