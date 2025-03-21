@@ -11,17 +11,18 @@ from count_common_mac import count_common_mac_occurrences
 from amp_phase_fft_plot import parse_csi_amp_phase_fft_plot
 from csv_merge import combine_csv_files
 from mac_id_counter import count_mac_occurrences
+from get_n_csv_filepaths import get_n_csv_filepaths
 
 #%% count_common_mac_occurences()
 
-list_of_file_paths = ["/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/csi_data_collected/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_13_feb_1.csv", \
-                      "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/csi_data_collected/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_15_feb_1.csv", \
-                      "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/csi_data_collected/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_16_feb_1.csv", \
-                      "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/csi_data_collected/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_16_feb_2.csv", \
-                      "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/csi_data_collected/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_16_feb_3.csv", \
-                      "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/csi_data_collected/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_17_feb_1.csv", \
-                      "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/csi_data_collected/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_17_feb_2.csv", \
-                      "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/csi_data_collected/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_17_feb_3.csv" \
+list_of_file_paths = ["/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_13_feb_1.csv", \
+                      "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_15_feb_1.csv", \
+                      "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_16_feb_1.csv", \
+                      "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_16_feb_2.csv", \
+                      "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_16_feb_3.csv", \
+                      "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_17_feb_1.csv", \
+                      "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_17_feb_2.csv", \
+                      "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_17_feb_3.csv" \
                           ]
 count_common_mac_occurrences(list_of_file_paths, number_of_top_mac_ids=10, minimum_number_of_samples=None)
 
@@ -80,14 +81,14 @@ parse_csi_amp_phase_fft_plot(file_path = file_path, target_macs=target_macs, sub
 
 #%% combine_csv_files()
 
-file_paths = ["/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/csi_data_collected/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_13_feb_1.csv", \
-                      "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/csi_data_collected/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_15_feb_1.csv", \
-                      "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/csi_data_collected/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_16_feb_1.csv", \
-                      "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/csi_data_collected/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_16_feb_2.csv", \
-                      "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/csi_data_collected/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_16_feb_3.csv", \
-                      "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/csi_data_collected/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_17_feb_1.csv", \
-                      "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/csi_data_collected/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_17_feb_2.csv", \
-                      "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/csi_data_collected/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_17_feb_3.csv" \
+file_paths = ["/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_13_feb_1.csv", \
+                      "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_15_feb_1.csv", \
+                      "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_16_feb_1.csv", \
+                      "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_16_feb_2.csv", \
+                      "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_16_feb_3.csv", \
+                      "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_17_feb_1.csv", \
+                      "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_17_feb_2.csv", \
+                      "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_17_feb_3.csv" \
                           ]
 
 output_file =  "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/csi_data_collected/esp_printed_antenna/04_feb_2025/merged_files/merged.csv"   
@@ -95,8 +96,14 @@ combine_csv_files(file_paths=file_paths, output_file=output_file)
 
 #%% count_mac_occurrences
 
-file_path = "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/csi_data_collected/esp_printed_antenna/04_feb_2025/msc_5aps_fixedpos_19_feb_1.csv"
+file_path = "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/systematic_collection/02_mar_25_p1_05_15_.csv"
 n = 5
 
 count_mac_occurrences(file_path, n=n)
 
+#%% get_n_csv_filepaths()
+
+folder_path = "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025"
+n = 5  # Number of files you want to retrieve
+
+get_n_csv_filepaths(folder_path, n)
