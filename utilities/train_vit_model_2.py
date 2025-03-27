@@ -12,6 +12,8 @@ is the exact same fucntion as that is in the utilities.py file from the "caa_aut
 repository.
 '''
 
+#imports
+import torch
 
 def train_vit_model_2(model, train_loader, optimizer, loss_fn, device):
     """
