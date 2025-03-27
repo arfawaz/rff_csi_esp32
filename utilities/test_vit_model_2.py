@@ -12,6 +12,8 @@ This fucntion is used to test the vit_model_2 model from models.py. This fucntio
 is the exact same fucntion as that is in the utilities.py file from the "caa_authentication"
 repository.
 '''
+# imports
+import torch
 
 def test_vit_model_2(model, test_loader, loss_fn, device):
     """
