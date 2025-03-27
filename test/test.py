@@ -1696,3 +1696,582 @@ folder_path = "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi
 n = 20 # Change this to the desired number of files
 
 get_n_csv_filepaths(folder_path, n)
+
+
+#%%
+
+
+#imports
+import torch.nn as nn
+import torch
+from torchvision.models import ResNet50_Weights, VGG16_Weights, Inception_V3_Weights
+from torchvision import models
+from transformers import ViTConfig, ViTForImageClassification, AdamW
+#from utilities import get_positional_encoding
+import math
+
+
+# vit_model_2
+
+'''
+This model is used to do classification task on caa input data of shape 1000by8
+using ViT based model. We are using a built-in transformer model from huggingface
+called ViTForImageClassification which takes in a ViTConfig file which contains the
+details of the model like input size, number of classes, attention head etc. We 
+wrap this inside the nn.module() to create the vit_model_2. In this model we configure
+the ViTConfig to do tokenziation by taking each of the 1000by1 columns in the whole
+1000by8 and embedding them. This is achieved by setting the convolutional filter
+patch size as (1000,1).
+'''
+
+class vit_model_2(nn.Module):  # Defining a custom ViT model class inheriting from nn.Module
+    def __init__(self, input_dim=(64, 2), num_classes=15, hidden_size=768, 
+                 num_attention_heads=12, num_hidden_layers=12, intermediate_size=3072, 
+                 patch_size=(64, 1), num_channels=1):
+        
+        """
+        Initializes the Vision Transformer (ViT) model with custom configurations.
+
+        Args:
+        - input_dim (tuple): Dimensions of the input data (height, width). Default is (1000, 8).
+        - num_classes (int): Number of output classes for classification. Default is 300.
+        - hidden_size (int): Size of the transformer hidden layers. Default is 768.
+        - num_attention_heads (int): Number of attention heads in the transformer layers. Default is 12.
+        - num_hidden_layers (int): Number of transformer layers. Default is 12.
+        - intermediate_size (int): Size of the intermediate feed-forward layer in the transformer. Default is 3072.
+        - patch_size (tuple): Size of each patch the model processes. Default is (1000, 1).
+        - num_channels (int): Number of input channels. Default is 1 for grayscale data.
+        """
+        
+        super(vit_model_2, self).__init__()  # Calls the constructor of the parent class (nn.Module)
+        
+        # Store the model hyperparameters
+        self.input_dim = input_dim  # Input image dimensions (Height, Width)
+        self.num_classes = num_classes  # Number of classification labels
+        self.hidden_size = hidden_size  # Transformer hidden layer size
+        self.num_attention_heads = num_attention_heads  # Number of attention heads
+        self.num_hidden_layers = num_hidden_layers  # Number of transformer layers
+        self.intermediate_size = intermediate_size  # Feed-forward network size
+        self.patch_size = patch_size  # Patch size for dividing the input image
+        self.num_channels = num_channels  # Number of channels (e.g., grayscale = 1, RGB = 3)
+
+        # Create ViT Configuration object with the specified parameters
+        self.ViTConfig = ViTConfig(
+            image_size=self.input_dim,  # Specifies the input image dimensions (height, width)
+            num_labels=self.num_classes,  # Number of classes in the output classification
+            hidden_size=self.hidden_size,  # Size of hidden layers in the transformer
+            num_attention_heads=self.num_attention_heads,  # Number of self-attention heads per transformer layer
+            num_hidden_layers=self.num_hidden_layers,  # Total transformer encoder layers
+            intermediate_size=self.intermediate_size,  # Size of the feed-forward layer inside each transformer block
+            patch_size=self.patch_size,  # Size of image patches that will be fed to the transformer
+            num_channels=self.num_channels,  # Number of input channels (e.g., 1 for grayscale, 3 for RGB)
+        )
+
+        # Initialize the Vision Transformer model for image classification using the defined configuration
+        self.ViTForImageClassification = ViTForImageClassification(self.ViTConfig)
+        
+    def forward(self, x):
+        """
+        Defines the forward pass of the model.
+
+        Args:
+        - x (torch.Tensor): Input tensor representing an image or batch of images.
+
+        Returns:
+        - torch.Tensor: The output logits from the ViT classification model.
+        """
+        x = self.ViTForImageClassification(x)  # Pass input through the ViT model
+        return x
+
+###############################################################################
+
+
+#%%
+
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Feb 18 18:31:10 2025
+
+@author: fawaz
+"""
+
+import csv
+import torch
+import random
+
+def parse_csi_data(csi_row):
+    """
+    Parses a single row of CSI data into a 64x2 PyTorch tensor.
+    """
+    csi_values = csi_row.split()
+    if len(csi_values) != 128:
+        return None  # Skip invalid CSI rows
+    csi_tensor = []
+    for i in range(0, 128, 2):
+        try:
+            magnitude = float(csi_values[i])
+            angle = float(csi_values[i + 1])
+            csi_tensor.append([magnitude, angle])
+        except ValueError:
+            return None  # Skip rows with invalid numeric values
+    return torch.tensor(csi_tensor)
+
+def process_csv_fixed_id_uniform_sampling(file_path, mac_id_list, max_samples_per_mac=50000):
+    """
+    Processes a CSV file to extract CSI data for specific MAC addresses and assigns labels based on their order in mac_id_list.
+    Instead of selecting the first max_samples_per_mac entries, this function selects uniformly from all available entries.
+    """
+    mac_entries = {mac: [] for mac in mac_id_list}  # Store all CSI data for each MAC
+    
+    # Read CSV file and collect all valid CSI entries for each MAC
+    with open(file_path, newline='') as csvfile:
+        reader = csv.reader(csvfile)
+        for row in reader:
+            if len(row) != 2:
+                continue  # Skip invalid rows
+            current_mac_id, csi_row = row  
+            if current_mac_id not in mac_id_list:
+                continue  # Skip MACs not in the specified list
+            
+            csi_tensor = parse_csi_data(csi_row)
+            if csi_tensor is not None:
+                mac_entries[current_mac_id].append(csi_tensor)  # Store valid CSI tensor
+    
+    # Randomly select up to max_samples_per_mac for each MAC
+    data = []
+    labels = []
+    mac_id_to_label = {mac: i for i, mac in enumerate(mac_id_list)}  # Assign labels based on order
+
+    for mac, entries in mac_entries.items():
+        sample_size = min(len(entries), max_samples_per_mac)
+        sampled_entries = random.sample(entries, sample_size)  # Uniform random selection
+
+        data.extend(sampled_entries)
+        labels.extend([mac_id_to_label[mac]] * sample_size)
+
+    if data:
+        data_ = torch.stack(data)
+        labels_ = torch.tensor(labels, dtype=torch.long)
+        return data_, labels_
+    else:
+        return None, None  # Return None if no valid data was processed
+
+
+#%% imports
+
+# 1) imports
+import models
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from utilities import load_data_from_csv, train_test_loader, train, test, train_inception, \
+    mean_norm,copy_columns, train_vit, load_data_from_csv_vit_model_1, get_positional_encoding, \
+    calculate_test_accuracy_vit_model_1, train_vit_model_1, CustomDataset_vit_model_1, \
+        CustomDataset_vit_model_2, train_vit_model_2, test_vit_model_2
+from models import SimpleCNN, CustomResNet50, CustomVgg16, CustomInceptionV3, vit_model_1, vit_model_2
+from torch.utils.data import Subset, DataLoader, TensorDataset, random_split
+from transformers import AdamW
+
+print("Done imports")
+
+#%%
+import os
+import pandas as pd
+import torch
+from torch.utils.data import DataLoader, TensorDataset, random_split, Dataset
+from datetime import datetime
+from tqdm import tqdm
+import math
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+#%%
+
+# 16) CustomDataset_vit_model_1
+
+# Define a custom dataset class inheriting from PyTorch's Dataset class
+class CustomDataset_vit_model_1(Dataset):
+    def __init__(self, data, labels):
+        """
+        Initialize the dataset.
+        
+        Args:
+            data (torch.Tensor): 
+                - The input data tensor of shape (N, 1000, 8)
+                  where:
+                    - N = Number of samples
+                    - 1000 = Number of time steps (or features) per sample
+                    - 8 = Number of channels or dimensions per time step
+
+            labels (torch.Tensor): 
+                - Tensor of labels of shape (N,)
+                  where:
+                    - N = Number of samples
+                    - Each label is a single integer representing the class index
+        
+        Example:
+            data.shape = (440, 1000, 8)  # 440 samples, 1000 time steps, 8 channels
+            labels.shape = (440,)         # 440 labels (one per sample)
+        """
+        # Store the data and labels as class attributes
+        self.data = data
+        self.labels = labels
+    
+    def __len__(self):
+        """
+        Return the number of samples in the dataset.
+        
+        Returns:
+            int: Number of samples in the dataset (length of the data tensor)
+        
+        Example:
+            If data.shape = (440, 1000, 8), this will return 440
+        """
+        return len(self.data)
+    
+    def __getitem__(self, idx):
+        """
+        Retrieve a single sample and its corresponding label.
+        
+        Args:
+            idx (int): Index of the sample to retrieve.
+        
+        Returns:
+            torch.Tensor: 
+                - Data sample of shape (1, 1000, 8)  
+                - The unsqueeze operation adds a new dimension at the beginning 
+                  to represent the "channel" dimension, which is often required 
+                  when working with convolutional or transformer models.
+              
+            torch.Tensor:
+                - Corresponding label as a single integer.
+        
+        Example:
+            If data[idx] has shape (1000, 8), after unsqueeze:
+            sample.shape = (1, 1000, 8)
+        
+        Notes:
+            - `unsqueeze(0)` converts a 2D tensor (1000, 8) into a 3D tensor (1, 1000, 8).
+            - This is useful if the model expects a channel dimension in the input.
+        """
+        sample = self.data[idx].unsqueeze(0)  # (1000, 8) -> (1, 1000, 8)
+        label = self.labels[idx]  # Integer label
+        return sample, label
+    
+
+
+# 17) CustomDataset_vit_model_2
+
+class CustomDataset_vit_model_2(Dataset):
+    def __init__(self, data, labels):
+        """
+        Initialize the CustomDataset class.
+        
+        Args:
+            data (torch.Tensor): A tensor containing the input data of shape (N, 1000, 8),
+                                 where:
+                                 - N = number of samples
+                                 - 1000 = sequence length (or time steps)
+                                 - 8 = number of features (or channels)
+            labels (torch.Tensor): A tensor containing the class labels of shape (N,),
+                                   where N = number of samples.
+        
+        Example:
+            data shape: (10000, 1000, 8)
+            labels shape: (10000,)
+        """
+        self.data = data      # Store the input data
+        self.labels = labels  # Store the labels
+    
+    def __len__(self):
+        """
+        Return the total number of samples in the dataset.
+        
+        This allows the DataLoader to know how many samples are available.
+        
+        Returns:
+            int: Number of samples in the dataset.
+        """
+        return len(self.data)  # Return the length of the dataset
+    
+    def __getitem__(self, idx):
+        """
+        Retrieve a single sample and its corresponding label based on the given index.
+        
+        Args:
+            idx (int): Index of the sample to retrieve.
+        
+        Returns:
+            torch.Tensor: A data sample of shape (1, 1000, 8), where:
+                          - 1 = channel dimension (for compatibility with CNN/Transformer models)
+                          - 1000 = sequence length
+                          - 8 = number of features (or channels)
+            torch.Tensor: Corresponding label (scalar value).
+        
+        Example:
+            If the original sample shape is (1000, 8), it is reshaped to (1, 1000, 8)
+            using `unsqueeze(0)`, which adds a channel dimension.
+        """
+        # Extract the sample at the specified index
+        sample = self.data[idx]  # Shape: (1000, 8)
+        
+        # Add a channel dimension at the beginning to make it compatible with CNN/Transformer models
+        sample = sample.unsqueeze(0)  # Shape becomes: (1, 1000, 8)
+        
+        # Extract the corresponding label
+        label = self.labels[idx]
+        
+        return sample, label
+    
+    
+#%%
+
+# 18) train_vit_model_2
+
+def train_vit_model_2(model, train_loader, optimizer, loss_fn, device):
+    """
+    Function to train a model for one epoch.
+
+    Args:
+        model (torch.nn.Module): The neural network model to train.
+        train_loader (torch.utils.data.DataLoader): DataLoader providing batches of training data.
+        optimizer (torch.optim.Optimizer): Optimizer to update model weights (e.g., Adam, SGD).
+        loss_fn (torch.nn.Module): Loss function to compute the error (e.g., CrossEntropyLoss).
+        device (torch.device): Device to run the training on ('cuda' or 'cpu').
+
+    Returns:
+        tuple: (avg_loss, avg_accuracy)
+            - avg_loss (float): Average loss over the training dataset.
+            - avg_accuracy (float): Average accuracy over the training dataset.
+    """
+
+    # Set the model to training mode
+    # This enables certain layers like dropout and batch normalization to behave differently during training.
+    model.train()
+
+    # Initialize variables to track the total loss, correct predictions, and total samples
+    total_loss = 0
+    total_correct = 0
+    total_samples = 0
+
+    # Loop over each batch of data provided by the train_loader
+    for images, labels in train_loader:
+        # Move input data and labels to the specified device (GPU or CPU)
+        images, labels = images.to(device), labels.to(device)
+
+        # Zero out the gradients from the previous step to prevent accumulation
+        optimizer.zero_grad()
+
+        # ---------------------
+        # Forward Pass
+        # ---------------------
+        # Pass the input data through the model
+        # `outputs` contains the raw model outputs (logits) before softmax activation
+        outputs = model(images).logits  
+
+        # Compute the loss between predicted and true labels
+        loss = loss_fn(outputs, labels)
+
+        # Add current batch loss to the total loss (for calculating average loss later)
+        total_loss += loss.item()
+
+        # ---------------------
+        # Backward Pass and Optimization
+        # ---------------------
+        # Compute gradients by backpropagation
+        loss.backward()
+
+        # Update model parameters using the optimizer
+        optimizer.step()
+
+        # ---------------------
+        # Compute Accuracy
+        # ---------------------
+        # Get the index of the maximum logit value along dimension 1 (class prediction)
+        _, predicted = torch.max(outputs, 1)  # Shape of predicted = [batch_size]
+
+        # Count the number of correct predictions
+        total_correct += (predicted == labels).sum().item()
+
+        # Track the total number of samples processed so far
+        total_samples += labels.size(0)
+
+    # Compute the average loss over the entire training set
+    avg_loss = total_loss / len(train_loader)
+
+    # Compute the average accuracy over the entire training set
+    avg_accuracy = total_correct / total_samples * 100
+
+    # Return the average loss and accuracy
+    return avg_loss, avg_accuracy
+
+###############################################################################
+
+# 19) test_vit_model_2
+
+def test_vit_model_2(model, test_loader, loss_fn, device):
+    """
+    Function to evaluate a model on the test dataset.
+
+    Args:
+        model (torch.nn.Module): The trained neural network model.
+        test_loader (torch.utils.data.DataLoader): DataLoader providing batches of test data.
+        loss_fn (torch.nn.Module): Loss function to compute the error (e.g., CrossEntropyLoss).
+        device (torch.device): Device to run the testing on ('cuda' or 'cpu').
+
+    Returns:
+        tuple: (avg_loss, avg_accuracy)
+            - avg_loss (float): Average loss over the test dataset.
+            - avg_accuracy (float): Average accuracy over the test dataset.
+    """
+
+    # ---------------------
+    # Set Model to Evaluation Mode
+    # ---------------------
+    # In evaluation mode, dropout and batch normalization layers behave differently.
+    # - Dropout layers are disabled (all neurons are active).
+    # - Batch normalization uses running averages instead of batch statistics.
+    model.eval()
+
+    # Initialize variables to track total loss, correct predictions, and total samples
+    total_loss = 0
+    total_correct = 0
+    total_samples = 0
+
+    # ---------------------
+    # Disable Gradient Calculation
+    # ---------------------
+    # `torch.no_grad()` prevents PyTorch from calculating and storing gradients.
+    # - Reduces memory consumption and speeds up computation.
+    with torch.no_grad():
+        # Loop over each batch of data from the test_loader
+        for images, labels in test_loader:
+            # Move input data and labels to the specified device (GPU or CPU)
+            images, labels = images.to(device), labels.to(device)
+
+            # ---------------------
+            # Forward Pass
+            # ---------------------
+            # Pass the input data through the model
+            # `outputs` contains the raw model outputs (logits) before softmax activation
+            outputs = model(images).logits
+            
+            # Compute the loss between predicted and true labels
+            loss = loss_fn(outputs, labels)
+            total_loss += loss.item()
+
+            # ---------------------
+            # Compute Accuracy
+            # ---------------------
+            # `torch.max(outputs, 1)` returns:
+            #   - Values: highest logit value along dimension 1 (not used here)
+            #   - Indices: index of the highest value along dimension 1 (predicted class)
+            _, predicted = torch.max(outputs, 1)  
+
+            # Count the number of correct predictions
+            total_correct += (predicted == labels).sum().item()
+
+            # Track the total number of samples processed so far
+            total_samples += labels.size(0)
+
+    # ---------------------
+    # Calculate Average Loss and Accuracy
+    # ---------------------
+    # Average loss = total loss across all batches divided by number of batches
+    avg_loss = total_loss / len(test_loader)
+
+    # Average accuracy = total correct predictions / total samples
+    avg_accuracy = total_correct / total_samples * 100
+
+    # ---------------------
+    # Return Results
+    # ---------------------
+    return avg_loss, avg_accuracy
+    
+
+#%%
+
+
+# Prompt the user for the file path
+file_path = input("Please enter the file path to the CSV file: ")
+batch_size = 16
+
+# Process the CSV file
+data, labels = process_csv_fixed_id_uniform_sampling(file_path = file_path , mac_id_list = \
+["00:FC:BA:38:4B:00", \
+"00:FC:BA:38:4B:01", \
+"00:FC:BA:38:4B:02", \
+"70:DB:98:9E:3A:A0", \
+"70:DB:98:9E:3A:A1"], max_samples_per_mac=1000)
+dataset_vit_model_1 = CustomDataset_vit_model_1(data, labels)
+# Split into train and test datasets
+train_size = int(0.9 * len(dataset_vit_model_1))
+test_size = len(dataset_vit_model_1) - train_size
+train_dataset_vit_model_1, test_dataset_vit_model_1 = random_split(dataset_vit_model_1, [train_size, test_size])
+train_loader_vit_model_1 = DataLoader(train_dataset_vit_model_1, batch_size=batch_size, shuffle=True)
+test_loader_vit_model_1 = DataLoader(test_dataset_vit_model_1, batch_size=batch_size, shuffle=False)
+
+
+
+#%%
+num_classes = 5
+learning_rate = 5e-5
+num_epochs = 50
+
+model = vit_model_2(num_classes = num_classes)
+model.to(device)
+
+# Set up the optimizer and loss function
+optimizer = AdamW(model.parameters(), lr=learning_rate)
+loss_fn = torch.nn.CrossEntropyLoss()
+
+
+# Training the model
+for epoch in range(num_epochs):
+    print(f"Epoch {epoch + 1}/{num_epochs}")
+
+    # Training
+    train_loss, train_accuracy = train_vit_model_2(model = model, train_loader = train_loader_vit_model_1, optimizer = optimizer, loss_fn = loss_fn , device = device)
+    print(f"Training Loss: {train_loss:.4f}, Training Accuracy: {train_accuracy:.2f}%")
+
+    # Testing
+    test_loss, test_accuracy = test_vit_model_2(model = model, test_loader = test_loader_vit_model_1, loss_fn = loss_fn, device = device)
+    print(f"Testing Loss: {test_loss:.4f}, Testing Accuracy: {test_accuracy:.2f}%")
+
+
+
+
+
+#%% Training and Testing 
+
+# Prompt the user for the file path
+file_path = input("Please enter the file path to the CSV file: ")
+
+# Process the CSV file
+data, labels = process_csv_fixed_id_uniform_sampling(file_path = file_path , mac_id_list = \
+["00:FC:BA:38:4B:00", \
+"00:FC:BA:38:4B:01", \
+"00:FC:BA:38:4B:02", \
+"2A:C8:A7:E1:8F:F0"], max_samples_per_mac=1000)
+data = data.unsqueeze(1)
+dataset = mean_norm(data)
+train_loader, test_loader = train_test_loader(dataset, labels)
+
+num_classes = 5
+learning_rate = 0.001
+num_epochs = 50
+
+# Model setup
+model = SimpleCNN(num_classes)
+model = model.to(device)
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+
+# Model Training
+model.train()
+train(model=model, train_loader=train_loader, test_loader=test_loader, criterion=criterion, optimizer=optimizer, num_epochs=num_epochs)
+
+# Model Testing
+model.eval()
+_ = test(model, test_loader)
+

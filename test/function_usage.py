@@ -96,7 +96,7 @@ combine_csv_files(file_paths=file_paths, output_file=output_file)
 
 #%% count_mac_occurrences
 
-file_path = "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/systematic_collection/02_mar_25_p1_05_15_.csv"
+file_path = "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection/24_mar_25_p2_04_00_07_00.csv"
 n = 5
 
 count_mac_occurrences(file_path, n=n)
