@@ -77,6 +77,7 @@ def process_csv_fixed_id_uniform_sampling_rssi(file_path, mac_id_list, max_sampl
 
     if data:
         data_ = torch.stack(data)
+        data_ = data_.squeeze()
         labels_ = torch.tensor(labels, dtype=torch.long)
         return data_, labels_
     else:
