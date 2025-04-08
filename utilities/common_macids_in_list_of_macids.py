@@ -28,5 +28,5 @@ def common_macids_in_list_of_macids(mac_lists):
         common_macids.intersection_update(mac_list)
 
     # Return as a list (sorted optionally)
-    print("Common MAC IDs accross the list of MAC IDs: {common_macids}")
+    print(f"Common MAC IDs accross the list of MAC IDs: {common_macids}")
     return list(common_macids)
