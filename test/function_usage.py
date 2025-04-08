@@ -12,18 +12,108 @@ from amp_phase_fft_plot import parse_csi_amp_phase_fft_plot
 from csv_merge import combine_csv_files
 from mac_id_counter import count_mac_occurrences
 from get_n_csv_filepaths import get_n_csv_filepaths
+from copy_csv_with_serial import copy_csv_with_serial
+from common_macids_in_list_of_macids import common_macids_in_list_of_macids
 
 #%% count_common_mac_occurences()
 
-list_of_file_paths = ["/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_13_feb_1.csv", \
-                      "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_15_feb_1.csv", \
-                      "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_16_feb_1.csv", \
-                      "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_16_feb_2.csv", \
-                      "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_16_feb_3.csv", \
-                      "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_17_feb_1.csv", \
-                      "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_17_feb_2.csv", \
-                      "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_17_feb_3.csv" \
-                          ]
+list_of_file_paths = [
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/1_24_feb_25_p3_04_31_05_15.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/2_24_feb_25_p4_05_17_06_55.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/3_24_feb_25_p5_07_00_09_00.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/4_25_feb_25_p6_1_00_01_15.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/5_25_feb_25_p7_01_15_03_00.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/6_25_feb_25_p4_03_05_05_00.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/7_25_feb_25_p5_05_05_07_00.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/8_25_feb_25_p6_07_05_09_00.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/9_26_feb_25_p3_01_00_01_50.csv",
+     "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/10_26_feb_25_p4_05_00_07_00.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/11_26_feb_25_p5_07_00_.csv",
+     "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/12_27_feb_25_p4_11_50_01_05.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/13_27_feb_25_p5_01_10_01_45.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/14_27_feb_25_p5_02_50_.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/15_27_feb_25_p6_03_15_05_00.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/16_27_feb_25_p7_05_00_07_00.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/17_27_feb_25_p8_07_10_09_00.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/18_28_feb_25_p7_04_40_.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/19_28_feb_25_p8_05_15_07_00.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/20_28_feb_25_p9_07_00_9_00.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/21_01_mar_25_p6_12_35_01_15.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/22_01_mar_25_p7_01_15_02_30.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/23_01_mar_25_p8_02_30_03_30.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/24_01_mar_25_p9_03_40_04:45.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/25_01_mar_25_p10_04_45_.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/26_02_mar_25_p7_01_00_02_00.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/27_02_mar_25_p8_02_00_03_00.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/28_02_mar_25_p9_03_00_04_15.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/29_02_mar_25_p10_04_15_05_15.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/30_02_mar_25_p1_05_15_.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/31_03_mar_25_p10_04_00_05_00.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/32_03_mar_25_p1_05_00_06_00.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/33_04_mar_25_p9_02_00_03_00.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/34_04_mar_25_p10_03_00_04_00.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/35_04_mar_25_p1_04_00_05_00.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/36_04_mar_25_p2_05_00_.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/37_08_mar_25_p3_05_15_06_15.csv",
+     "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/38_08_mar_25_p4_06_20_07_20.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/39_08_mar_25_p5_07_20_08_25.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/40_08_mar_25_p6_08_25_09_25.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/41_08_mar_25_p7_09_25_10_25.csv",
+     "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/42_09_mar_25_p4_01_50_02_20.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/43_09_mar_25_p5_02_20_02_50.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/44_09_mar_25_p6_02_50_03_20.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/45_09_mar_25_p7_03_20_03_50.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/46_09_mar_25_p8_03_50_04_20.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/47_10_mar_25_p5_05_45_06_45.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/48_10_mar_25_p6_06_45_07_20.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/49_11_mar_25_p3_05_40_06_40.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/50_11_mar_25_p6_06_45_08_10.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/51_11_mar_25_p7_08_15_09_15.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/52_11_mar_25_p8_09_15_10_15.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/53_11_mar_25_p9_10_15_11_15.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/54_12_mar_25_p7_04_55_06_10.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/55_12_mar_25_p8_06_10_06_55.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/56_12_mar_25_p9_06_55_07_55.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/57_12_mar_25_p10_07_55_08_55.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/58_12_mar_25_p1_08_55_09_55.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/59_13_mar_25_p7_04_30_05_30.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/60_13_mar_25_p8_05_30_06_30.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/61_13_mar_25_p9_06_30_07_30.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/62_13_mar_25_p10_07_30_08_45.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/63_13_mar_25_p2_10_50_11_50.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/64_18_mar_25_p2_01_00_04_00.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/65_18_mar_25_p3_04_00_05_45.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/66_19_mar_25_p2_02_00_05_00.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/67_19_mar_25_p3_05_00_05_50.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/68_20_mar_25_p6_03_00_05_00.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/69_20_mar_25_p10_05_00_05_45.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/70_22_mar_25_p2_03_10_.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/71_24_mar_25_p2_04_00_07_00.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/72_24_mar_25_p3_07_00_10_00.csv",
+     "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/73_24_mar_25_p4_10_00_12_00.csv",
+     "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/74_25_mar_25_p4_04_00_07_00.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/75_26_mar_25_p8_05_44_08_45.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/76_26_mar_25_p9_08_45_11_30.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/77_27_mar_25_p2_12_30_03_30.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/78_27_mar_25_p10_03_40_06_40.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/79_31_mar_25_p5_04_50_08_10.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/80_31_mar_25_p6_08_10_10_55.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/81_01_apr_25_p3_12_15_03_15.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/82_01_apr_25_p7_03_15_06_45.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/83_01_apr_25_p10_06_50_09_50.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/84_02_apr_25_p10_04_50_08_10.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/85_02_apr_25_p10_08_00_10_20.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/86_03_apr_25_p5_01_00_04_20.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/87_03_apr_25_p6_04_45_07_50.csv",
+     "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/88_03_apr_25_p4_07_55_10_55.csv",
+     "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/89_05_apr_25_p4_02_30_05_30.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/90_05_apr_25_p5_05_30_8_40.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/91_05_apr_25_p6_08_40_11_40.csv",
+     "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/92_06_apr_25_p4_02_05_05_05.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/93_06_apr_25_p5_05_05_08_05.csv",
+    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/94_07_apr_25_p6_04_20_07_20.csv"
+]
+                          
 count_common_mac_occurrences(list_of_file_paths, number_of_top_mac_ids=10, minimum_number_of_samples=None)
 
 #%% parse_csi_amp_phase_fft_plot
@@ -96,14 +186,48 @@ combine_csv_files(file_paths=file_paths, output_file=output_file)
 
 #%% count_mac_occurrences
 
-file_path = "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection/24_mar_25_p2_04_00_07_00.csv"
+file_path = "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/csi_data_collected/esp_printed_antenna/04_feb_2025/merged_files/merged.csv"
 n = 5
 
 count_mac_occurrences(file_path, n=n)
 
 #%% get_n_csv_filepaths()
 
-folder_path = "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025"
-n = 5  # Number of files you want to retrieve
+folder_path = "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered"
+n = 94  # Number of files you want to retrieve
 
 get_n_csv_filepaths(folder_path, n)
+
+#%% copy_csv_with_serial
+
+source_folder = '/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection'
+destination_folder = '/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered' 
+copy_csv_with_serial(source_folder, destination_folder)
+
+#%% common_macids_in_list_of_macids
+
+mac_lists = [[
+"6C:B2:AE:39:1A:A0", \
+"6C:B2:AE:39:1A:A1", \
+"6C:B2:AE:39:1A:A2", \
+"70:0F:6A:DE:EC:A0", \
+"70:0F:6A:DE:EC:A1", \
+"70:0F:6A:DE:EC:A2", \
+"C8:28:E5:44:3B:00", \
+"70:0F:6A:FC:51:80", \
+"70:0F:6A:FC:51:81", \
+"70:0F:6A:FC:51:82"
+], \
+[
+"6C:B2:AE:39:1A:A0", \
+"6C:B2:AE:39:1A:A1", \
+"6C:B2:AE:39:1A:A2", \
+"70:0F:6A:DE:EC:A0", \
+"70:0F:6A:DE:EC:A1", \
+"70:0F:6A:DE:EC:A2", \
+"C8:28:E5:44:3B:00", \
+"70:0F:6A:FC:51:80", \
+"70:0F:6A:FC:51:81", \
+"70:0F:6A:FC:51:82"
+]]
+_ = common_macids_in_list_of_macids(mac_lists)
