@@ -52,7 +52,9 @@ def count_common_mac_occurrences(list_of_file_paths, number_of_top_mac_ids, mini
         top_mac_ids = sorted_common_mac_counts[:number_of_top_mac_ids]
         
         if len(common_mac_ids) < number_of_top_mac_ids:
-            print("\nTotal number of common MAC IDs is less than the requested top count.")
+            print(f"\nTotal number of common MAC IDs is less than the requested top count. \
+                  Total Requested = {number_of_top_mac_ids} \
+                  Actual available = {len(common_mac_ids)}")
         
         # Display the top common MAC addresses and their summed counts
         print(f"\nTop {number_of_top_mac_ids} Common MAC Addresses (Summed Count Across All Files):")
@@ -68,6 +70,9 @@ def count_common_mac_occurrences(list_of_file_paths, number_of_top_mac_ids, mini
                 print(f'"{mac}", \\')
         print("]")
         
+        print(f"Total Requested = {number_of_top_mac_ids} \
+        Actual available = {len(common_mac_ids)}")
+        
         # Find MAC ID with the least occurrences in the top list
         least_mac, least_count = min(top_mac_ids, key=lambda x: x[1], default=(None, None))
         print(f"\nMAC ID with the least occurrences in the top list: {least_mac} ({least_count} samples)")
@@ -77,7 +82,9 @@ def count_common_mac_occurrences(list_of_file_paths, number_of_top_mac_ids, mini
         filtered_mac_ids = [(mac, count) for mac, count in sorted_common_mac_counts if count >= minimum_number_of_samples]
         
         if len(filtered_mac_ids) < number_of_top_mac_ids:
-            print("\nThe required number_of_top_mac_ids with minimum_number_of_samples is not met.")
+            print(f"\nThe required number_of_top_mac_ids with minimum_number_of_samples is not met. \
+                  Total Requested = {number_of_top_mac_ids} \
+                  Actual available = {len(common_mac_ids)}")
         else:
             print(f"\nMAC Addresses with at least {minimum_number_of_samples}:")
             for mac, count in filtered_mac_ids[:number_of_top_mac_ids]:
