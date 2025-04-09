@@ -10,6 +10,7 @@ Created on Wed Feb 19 20:05:06 2025
 from count_common_mac import count_common_mac_occurrences
 from amp_phase_fft_plot import parse_csi_amp_phase_fft_plot
 from csv_merge import combine_csv_files
+from csv_merge_4_cols import combine_csv_files_4_cols
 from mac_id_counter import count_mac_occurrences
 from get_n_csv_filepaths import get_n_csv_filepaths
 from copy_csv_with_serial import copy_csv_with_serial
@@ -19,11 +20,11 @@ from common_macids_in_list_of_macids import common_macids_in_list_of_macids
 
 list_of_file_paths = [
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/1_24_feb_25_p3_04_31_05_15.csv",
-    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/2_24_feb_25_p4_05_17_06_55.csv",
+     "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/2_24_feb_25_p4_05_17_06_55.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/3_24_feb_25_p5_07_00_09_00.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/4_25_feb_25_p6_1_00_01_15.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/5_25_feb_25_p7_01_15_03_00.csv",
-    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/6_25_feb_25_p4_03_05_05_00.csv",
+     "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/6_25_feb_25_p4_03_05_05_00.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/7_25_feb_25_p5_05_05_07_00.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/8_25_feb_25_p6_07_05_09_00.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/9_26_feb_25_p3_01_00_01_50.csv",
@@ -42,16 +43,16 @@ list_of_file_paths = [
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/22_01_mar_25_p7_01_15_02_30.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/23_01_mar_25_p8_02_30_03_30.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/24_01_mar_25_p9_03_40_04:45.csv",
-    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/25_01_mar_25_p10_04_45_.csv",
+     "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/25_01_mar_25_p10_04_45_.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/26_02_mar_25_p7_01_00_02_00.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/27_02_mar_25_p8_02_00_03_00.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/28_02_mar_25_p9_03_00_04_15.csv",
-    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/29_02_mar_25_p10_04_15_05_15.csv",
+     "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/29_02_mar_25_p10_04_15_05_15.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/30_02_mar_25_p1_05_15_.csv",
-    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/31_03_mar_25_p10_04_00_05_00.csv",
+     "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/31_03_mar_25_p10_04_00_05_00.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/32_03_mar_25_p1_05_00_06_00.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/33_04_mar_25_p9_02_00_03_00.csv",
-    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/34_04_mar_25_p10_03_00_04_00.csv",
+     "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/34_04_mar_25_p10_03_00_04_00.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/35_04_mar_25_p1_04_00_05_00.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/36_04_mar_25_p2_05_00_.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/37_08_mar_25_p3_05_15_06_15.csv",
@@ -74,19 +75,19 @@ list_of_file_paths = [
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/54_12_mar_25_p7_04_55_06_10.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/55_12_mar_25_p8_06_10_06_55.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/56_12_mar_25_p9_06_55_07_55.csv",
-    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/57_12_mar_25_p10_07_55_08_55.csv",
+     "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/57_12_mar_25_p10_07_55_08_55.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/58_12_mar_25_p1_08_55_09_55.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/59_13_mar_25_p7_04_30_05_30.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/60_13_mar_25_p8_05_30_06_30.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/61_13_mar_25_p9_06_30_07_30.csv",
-    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/62_13_mar_25_p10_07_30_08_45.csv",
+     "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/62_13_mar_25_p10_07_30_08_45.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/63_13_mar_25_p2_10_50_11_50.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/64_18_mar_25_p2_01_00_04_00.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/65_18_mar_25_p3_04_00_05_45.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/66_19_mar_25_p2_02_00_05_00.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/67_19_mar_25_p3_05_00_05_50.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/68_20_mar_25_p6_03_00_05_00.csv",
-    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/69_20_mar_25_p10_05_00_05_45.csv",
+     "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/69_20_mar_25_p10_05_00_05_45.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/70_22_mar_25_p2_03_10_.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/71_24_mar_25_p2_04_00_07_00.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/72_24_mar_25_p3_07_00_10_00.csv",
@@ -95,14 +96,14 @@ list_of_file_paths = [
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/75_26_mar_25_p8_05_44_08_45.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/76_26_mar_25_p9_08_45_11_30.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/77_27_mar_25_p2_12_30_03_30.csv",
-    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/78_27_mar_25_p10_03_40_06_40.csv",
+     "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/78_27_mar_25_p10_03_40_06_40.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/79_31_mar_25_p5_04_50_08_10.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/80_31_mar_25_p6_08_10_10_55.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/81_01_apr_25_p3_12_15_03_15.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/82_01_apr_25_p7_03_15_06_45.csv",
-    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/83_01_apr_25_p10_06_50_09_50.csv",
-    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/84_02_apr_25_p10_04_50_08_10.csv",
-    # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/85_02_apr_25_p10_08_00_10_20.csv",
+     "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/83_01_apr_25_p10_06_50_09_50.csv",
+     "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/84_02_apr_25_p10_04_50_08_10.csv",
+     "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/85_02_apr_25_p10_08_00_10_20.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/86_03_apr_25_p5_01_00_04_20.csv",
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/87_03_apr_25_p6_04_45_07_50.csv",
      "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/88_03_apr_25_p4_07_55_10_55.csv",
@@ -114,7 +115,7 @@ list_of_file_paths = [
     # "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/data_collection/systematic_collection_numbered/94_07_apr_25_p6_04_20_07_20.csv"
 ]
                           
-count_common_mac_occurrences(list_of_file_paths, number_of_top_mac_ids=10, minimum_number_of_samples=None)
+count_common_mac_occurrences(list_of_file_paths, number_of_top_mac_ids=1000000, minimum_number_of_samples=None)
 
 #%% parse_csi_amp_phase_fft_plot
 
@@ -184,6 +185,21 @@ file_paths = ["/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi
 output_file =  "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/csi_data_collected/esp_printed_antenna/04_feb_2025/merged_files/merged.csv"   
 combine_csv_files(file_paths=file_paths, output_file=output_file)
 
+#%% combine_csv_files_4_cols()
+
+file_paths = ["/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_13_feb_1.csv", \
+                      "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_15_feb_1.csv", \
+                      "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_16_feb_1.csv", \
+                      "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_16_feb_2.csv", \
+                      "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_16_feb_3.csv", \
+                      "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_17_feb_1.csv", \
+                      "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_17_feb_2.csv", \
+                      "/home/fawaz/Desktop/usf/directed_research/projects_on_git/rff_csi_esp32/csi_data_collected/csi_rff_data/esp_printed_antenna/04_feb_2025/msc_allaps_fixedpos_17_feb_3.csv" \
+                          ]
+
+output_file =  "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/csi_data_collected/esp_printed_antenna/04_feb_2025/merged_files/merged.csv"   
+combine_csv_files_4_cols(file_paths=file_paths, output_file=output_file)
+
 #%% count_mac_occurrences
 
 file_path = "/home/fawaz/Desktop/USF/PHD/COURSES/SPRING25/projects_on_git/rff_csi_esp32/csi_data_collected/esp_printed_antenna/04_feb_2025/merged_files/merged.csv"
@@ -206,7 +222,7 @@ copy_csv_with_serial(source_folder, destination_folder)
 
 #%% common_macids_in_list_of_macids
 
-mac_lists = [[
+mac_lists = [[ \
 "6C:B2:AE:39:1A:A0", \
 "6C:B2:AE:39:1A:A1", \
 "6C:B2:AE:39:1A:A2", \
@@ -215,19 +231,55 @@ mac_lists = [[
 "70:0F:6A:DE:EC:A2", \
 "C8:28:E5:44:3B:00", \
 "70:0F:6A:FC:51:80", \
+"00:FC:BA:38:4B:00", \
 "70:0F:6A:FC:51:81", \
-"70:0F:6A:FC:51:82"
+"70:0F:6A:FC:51:82", \
+"00:FC:BA:38:4B:01", \
+"00:FC:BA:27:63:00", \
+"00:FC:BA:38:4B:02", \
+"00:FC:BA:27:63:01", \
+"00:FC:BA:27:63:02", \
+"84:3D:C6:5F:5D:50", \
+"00:FC:BA:2C:53:60", \
+"00:FC:BA:27:63:60", \
+"84:3D:C6:5F:5D:51", \
+"00:FC:BA:27:63:61", \
+"84:3D:C6:5F:5D:52", \
+"00:FC:BA:2C:53:61", \
+"00:FC:BA:27:63:62", \
+"00:FC:BA:2C:53:62", \
+"70:0F:6A:DE:ED:20", \
+"70:0F:6A:DE:ED:22", \
+"70:0F:6A:DE:ED:21", \
+"70:0F:6A:E9:9D:80", \
+"70:0F:6A:E9:9D:81", \
+"70:0F:6A:E9:9D:82", \
+"70:0F:6A:BF:C1:40", \
+"70:0F:6A:BF:C1:41", \
+"70:0F:6A:BF:C1:42", \
+"AA:17:C8:25:33:97", \
+"00:FC:BA:4D:99:20", \
+"00:FC:BA:4D:99:21", \
+"00:FC:BA:4D:99:22" \
 ], \
-[
-"6C:B2:AE:39:1A:A0", \
-"6C:B2:AE:39:1A:A1", \
-"6C:B2:AE:39:1A:A2", \
-"70:0F:6A:DE:EC:A0", \
-"70:0F:6A:DE:EC:A1", \
-"70:0F:6A:DE:EC:A2", \
-"C8:28:E5:44:3B:00", \
+[ \
+"70:0F:6A:E9:9D:80", \
+"70:0F:6A:BF:C1:40", \
+"70:0F:6A:E9:9D:81", \
+"70:0F:6A:BF:C1:41", \
+"70:0F:6A:E9:9D:82", \
 "70:0F:6A:FC:51:80", \
+"70:0F:6A:BF:C1:42", \
 "70:0F:6A:FC:51:81", \
-"70:0F:6A:FC:51:82"
+"00:FC:BA:38:4B:00", \
+"70:0F:6A:FC:51:82", \
+"00:FC:BA:27:63:60", \
+"00:FC:BA:38:4B:01", \
+"00:FC:BA:27:63:61", \
+"00:FC:BA:27:63:62", \
+"00:FC:BA:38:4B:02", \
+"00:FC:BA:27:63:01" \
 ]]
 _ = common_macids_in_list_of_macids(mac_lists)
+
+
