@@ -16,6 +16,8 @@ from get_n_csv_filepaths import get_n_csv_filepaths
 from copy_csv_with_serial import copy_csv_with_serial
 from common_macids_in_list_of_macids import common_macids_in_list_of_macids
 from count_target_macid_occurrences import count_target_macid_occurrences
+from build_macid_position_table import build_macid_position_table
+from macid_position_table_same_path import macid_position_table_same_path
 
 #%% count_common_mac_occurences()
 
@@ -269,6 +271,21 @@ count_dict, adjusted_counts = build_macid_position_table(mac_ids, file_paths)
 
 #%% macid_position_table_same_path
 
+mac_ids = [
+    "6C:B2:AE:39:1A:A0",
+    "70:0F:6A:DE:EC:A0",
+    "70:0F:6A:DE:EC:A1",
+    "6C:B2:AE:39:1A:A1",
+    "70:0F:6A:DE:EC:A2",
+    "6C:B2:AE:39:1A:A2",
+    "C8:28:E5:44:3B:00",
+    "00:FC:BA:38:4B:00",
+    "00:FC:BA:38:4B:01",
+    "70:0F:6A:FC:51:80",
+    "00:FC:BA:38:4B:02",
+    "84:3D:C6:5F:5D:50"
+]
+
 file_paths = [
     r"C:\Users\fawaz\OneDrive - University of South Florida\Desktop\USF\SEMESTER 1 - FALL 23\DIRECTED RESEARCH\projects_on_git\rff_csi_esp32\csi_data_collected\Individual_positions\p4\all_but_last_merged\p4_all_but_last_merged.csv", \
     r"C:\Users\fawaz\OneDrive - University of South Florida\Desktop\USF\SEMESTER 1 - FALL 23\DIRECTED RESEARCH\projects_on_git\rff_csi_esp32\csi_data_collected\Individual_positions\p5\all_but_last_merged\p5_all_but_last_merged.csv", \
@@ -277,4 +294,47 @@ file_paths = [
     #r"C:\Users\fawaz\OneDrive - University of South Florida\Desktop\USF\SEMESTER 1 - FALL 23\DIRECTED RESEARCH\projects_on_git\rff_csi_esp32\csi_data_collected\Individual_positions\p6\all_but_last_merged\p6_all_but_last_merged.csv"
     #r"C:\Users\fawaz\OneDrive - University of South Florida\Desktop\USF\SEMESTER 1 - FALL 23\DIRECTED RESEARCH\projects_on_git\rff_csi_esp32\csi_data_collected\Individual_positions\p7\all_but_last_merged\p7_all_but_last_merged.csv"
 ]    
-count_dict, adjusted_counts = build_macid_position_table(mac_ids, file_paths)
+count_dict, adjusted_counts = macid_position_table_same_path(mac_ids, file_paths)
+
+#%%
+
+
+
+
+mac_ids = [
+    "6C:B2:AE:39:1A:A0",
+    "70:0F:6A:DE:EC:A0",
+    "70:0F:6A:DE:EC:A1",
+    "6C:B2:AE:39:1A:A1",
+    "70:0F:6A:DE:EC:A2",
+    "6C:B2:AE:39:1A:A2",
+    "C8:28:E5:44:3B:00",
+    "00:FC:BA:38:4B:00",
+    "00:FC:BA:38:4B:01",
+    "70:0F:6A:FC:51:80",
+    "00:FC:BA:38:4B:02",
+    "84:3D:C6:5F:5D:50"
+]
+
+
+base_files = [
+    r"C:\Users\fawaz\OneDrive - University of South Florida\Desktop\USF\SEMESTER 1 - FALL 23\DIRECTED RESEARCH\projects_on_git\rff_csi_esp32\csi_data_collected\Individual_positions\p4\all_but_last_merged\p4_all_but_last_merged.csv", \
+    r"C:\Users\fawaz\OneDrive - University of South Florida\Desktop\USF\SEMESTER 1 - FALL 23\DIRECTED RESEARCH\projects_on_git\rff_csi_esp32\csi_data_collected\Individual_positions\p5\all_but_last_merged\p5_all_but_last_merged.csv" \
+    r"C:\Users\fawaz\OneDrive - University of South Florida\Desktop\USF\SEMESTER 1 - FALL 23\DIRECTED RESEARCH\projects_on_git\rff_csi_esp32\csi_data_collected\Individual_positions\p6\all_but_last_merged\p6_all_but_last_merged.csv"
+    #r"C:\Users\fawaz\OneDrive - University of South Florida\Desktop\USF\SEMESTER 1 - FALL 23\DIRECTED RESEARCH\projects_on_git\rff_csi_esp32\csi_data_collected\Individual_positions\p4_p5_p6\test\sampled_p4.csv"
+]  
+
+target_files = [
+    r"C:\Users\fawaz\OneDrive - University of South Florida\Desktop\USF\SEMESTER 1 - FALL 23\DIRECTED RESEARCH\projects_on_git\rff_csi_esp32\csi_data_collected\Individual_positions\p4_p5_p6\p4_last.csv", \
+    r"C:\Users\fawaz\OneDrive - University of South Florida\Desktop\USF\SEMESTER 1 - FALL 23\DIRECTED RESEARCH\projects_on_git\rff_csi_esp32\csi_data_collected\Individual_positions\p4_p5_p6\p4_last.csv" \
+    r"C:\Users\fawaz\OneDrive - University of South Florida\Desktop\USF\SEMESTER 1 - FALL 23\DIRECTED RESEARCH\projects_on_git\rff_csi_esp32\csi_data_collected\Individual_positions\p4_p5_p6\p6_last.csv"
+]
+
+
+  
+
+
+
+adjusted_counts_test = macid_position_table_different_path(mac_ids, base_files, target_files,min_samples=None)
+
+
