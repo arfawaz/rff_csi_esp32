@@ -18,7 +18,7 @@ from common_macids_in_list_of_macids import common_macids_in_list_of_macids
 from count_target_macid_occurrences import count_target_macid_occurrences
 from build_macid_position_table import build_macid_position_table
 from macid_position_table_same_path import macid_position_table_same_path
-
+from macid_position_table_different_path import macid_position_table_different_path
 #%% count_common_mac_occurences()
 
 list_of_file_paths = [
@@ -296,10 +296,7 @@ file_paths = [
 ]    
 count_dict, adjusted_counts = macid_position_table_same_path(mac_ids, file_paths)
 
-#%%
-
-
-
+#%% macid_position_table_different_path
 
 mac_ids = [
     "6C:B2:AE:39:1A:A0",
@@ -320,21 +317,14 @@ mac_ids = [
 base_files = [
     r"C:\Users\fawaz\OneDrive - University of South Florida\Desktop\USF\SEMESTER 1 - FALL 23\DIRECTED RESEARCH\projects_on_git\rff_csi_esp32\csi_data_collected\Individual_positions\p4\all_but_last_merged\p4_all_but_last_merged.csv", \
     r"C:\Users\fawaz\OneDrive - University of South Florida\Desktop\USF\SEMESTER 1 - FALL 23\DIRECTED RESEARCH\projects_on_git\rff_csi_esp32\csi_data_collected\Individual_positions\p5\all_but_last_merged\p5_all_but_last_merged.csv" \
-    r"C:\Users\fawaz\OneDrive - University of South Florida\Desktop\USF\SEMESTER 1 - FALL 23\DIRECTED RESEARCH\projects_on_git\rff_csi_esp32\csi_data_collected\Individual_positions\p6\all_but_last_merged\p6_all_but_last_merged.csv"
+    #r"C:\Users\fawaz\OneDrive - University of South Florida\Desktop\USF\SEMESTER 1 - FALL 23\DIRECTED RESEARCH\projects_on_git\rff_csi_esp32\csi_data_collected\Individual_positions\p6\all_but_last_merged\p6_all_but_last_merged.csv"
     #r"C:\Users\fawaz\OneDrive - University of South Florida\Desktop\USF\SEMESTER 1 - FALL 23\DIRECTED RESEARCH\projects_on_git\rff_csi_esp32\csi_data_collected\Individual_positions\p4_p5_p6\test\sampled_p4.csv"
 ]  
 
 target_files = [
     r"C:\Users\fawaz\OneDrive - University of South Florida\Desktop\USF\SEMESTER 1 - FALL 23\DIRECTED RESEARCH\projects_on_git\rff_csi_esp32\csi_data_collected\Individual_positions\p4_p5_p6\p4_last.csv", \
-    r"C:\Users\fawaz\OneDrive - University of South Florida\Desktop\USF\SEMESTER 1 - FALL 23\DIRECTED RESEARCH\projects_on_git\rff_csi_esp32\csi_data_collected\Individual_positions\p4_p5_p6\p4_last.csv" \
-    r"C:\Users\fawaz\OneDrive - University of South Florida\Desktop\USF\SEMESTER 1 - FALL 23\DIRECTED RESEARCH\projects_on_git\rff_csi_esp32\csi_data_collected\Individual_positions\p4_p5_p6\p6_last.csv"
+    r"C:\Users\fawaz\OneDrive - University of South Florida\Desktop\USF\SEMESTER 1 - FALL 23\DIRECTED RESEARCH\projects_on_git\rff_csi_esp32\csi_data_collected\Individual_positions\p4_p5_p6\p5_last.csv" \
+    #r"C:\Users\fawaz\OneDrive - University of South Florida\Desktop\USF\SEMESTER 1 - FALL 23\DIRECTED RESEARCH\projects_on_git\rff_csi_esp32\csi_data_collected\Individual_positions\p4_p5_p6\p6_last.csv"
 ]
 
-
-  
-
-
-
 adjusted_counts_test = macid_position_table_different_path(mac_ids, base_files, target_files,min_samples=None)
-
-
