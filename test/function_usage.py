@@ -19,6 +19,7 @@ from count_target_macid_occurrences import count_target_macid_occurrences
 from build_macid_position_table import build_macid_position_table
 from macid_position_table_same_path import macid_position_table_same_path
 from macid_position_table_different_path import macid_position_table_different_path
+from create_sampled_csv_files_from_table import create_sampled_csv_files_from_table
 #%% count_common_mac_occurences()
 
 list_of_file_paths = [
@@ -328,3 +329,34 @@ target_files = [
 ]
 
 adjusted_counts_test = macid_position_table_different_path(mac_ids, base_files, target_files,min_samples=None)
+
+#%% create_sampled_csv_files_from_table
+
+# List of MAC IDs of interest
+mac_ids = [
+    "6C:B2:AE:39:1A:A0",
+    "70:0F:6A:DE:EC:A0",
+    "70:0F:6A:DE:EC:A1",
+    "6C:B2:AE:39:1A:A1",
+    "70:0F:6A:DE:EC:A2",
+    "6C:B2:AE:39:1A:A2",
+    "C8:28:E5:44:3B:00",
+    "00:FC:BA:38:4B:00",
+    "00:FC:BA:38:4B:01",
+    "70:0F:6A:FC:51:80",
+    "00:FC:BA:38:4B:02",
+    "84:3D:C6:5F:5D:50"
+]
+
+# File paths for each position
+file_paths = [
+    r"C:\Users\fawaz\OneDrive - University of South Florida\Desktop\USF\SEMESTER 1 - FALL 23\DIRECTED RESEARCH\projects_on_git\rff_csi_esp32\csi_data_collected\Individual_positions\p4_p5_p6\p4_last.csv", \
+    #r"C:\Users\fawaz\OneDrive - University of South Florida\Desktop\USF\SEMESTER 1 - FALL 23\DIRECTED RESEARCH\projects_on_git\rff_csi_esp32\csi_data_collected\Individual_positions\p4_p5_p6\p5_last.csv" \
+    #r"C:\Users\fawaz\OneDrive - University of South Florida\Desktop\USF\SEMESTER 1 - FALL 23\DIRECTED RESEARCH\projects_on_git\rff_csi_esp32\csi_data_collected\Individual_positions\p4_p5_p6\p6_last.csv"
+]
+
+# Path where output sampled files will go
+output_folder = r"C:\Users\fawaz\OneDrive - University of South Florida\Desktop\USF\SEMESTER 1 - FALL 23\DIRECTED RESEARCH\projects_on_git\rff_csi_esp32\csi_data_collected\Individual_positions\p4_p5_p6\test\test_set"
+
+# Start the sampling process
+create_sampled_csv_files_from_table(mac_ids, file_paths, adjusted_counts_test, output_folder)
