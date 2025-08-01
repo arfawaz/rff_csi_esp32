@@ -29,12 +29,15 @@ def get_n_csv_filepaths(folder_path, n):
     # Select the first 'n' files
     csv_file_paths = csv_files[:n]
     
-    # Format output for easy copy-pasting as a Python list
+    # Format output for easy copy-pasting as a Python list with raw string literals
     if csv_file_paths:
         print("[")
         for i, path in enumerate(csv_file_paths):
             if i < len(csv_file_paths) - 1:
-                print(f'    \"{path}\", \\')
+                print(f'    r"{path}", \\')
             else:
-                print(f'    \"{path}\"')
+                print(f'    r"{path}"')
         print("]")
+
+# Example usage:
+# get_n_csv_filepaths("your/folder/path", 5)
