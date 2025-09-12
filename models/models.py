@@ -26,7 +26,7 @@ only the number of classes (num_classes) can be varied.
 '''
 class SimpleCNN(nn.Module):
     def __init__(self,num_classes):
-        super(SimpleCNN, self).__init__()
+        super().__init__()
         self.conv1 = nn.Conv2d(in_channels=1, out_channels=16, kernel_size=(3, 1),padding=(1, 0))
         self.conv2 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=(3, 1),padding=(1, 0))
         self.fc1 = nn.Linear(4096, 128)  # Adjusted based on the output shape of conv layers
@@ -119,3 +119,54 @@ class vit_model_2(nn.Module):  # Defining a custom ViT model class inheriting fr
         return x
 
 ###############################################################################
+
+# ResNet50CSI
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torchvision.models import ResNet50_Weights
+from torchvision import models
+
+
+class ResNet50CSI(nn.Module):
+    """
+    NEW: ResNet-50 adapter for CSI tensors.
+
+    INPUT (to forward):
+      x: [B, 1, 64, 2]
+        - B: batch size
+        - 1: single channel (e.g., magnitude or a single stacked feature)
+        - 64: 'height' (e.g., subcarriers)
+        - 2:  'width'  (e.g., I/Q or two features)
+
+    ADAPTATION STEPS (inside forward):
+      1) Bilinear resize to 224×224:
+           [B, 1, 64, 2] → [B, 1, 224, 224]
+      2) Channel repeat to 3 channels (match ImageNet pretrained stem):
+           [B, 1, 224, 224] → [B, 3, 224, 224]
+      3) Feed to ResNet-50 backbone (final FC replaced to num_classes):
+           [B, 3, 224, 224] → logits [B, num_classes]
+    """
+    def __init__(self, num_classes: int, pretrained: bool = True):
+        super().__init__()
+        # Load a torchvision ResNet-50; swap the final FC for our classes.
+        # If pretrained=True, use ImageNet weights; else randomly initialize.
+        weights = ResNet50_Weights.IMAGENET1K_V2 if pretrained else None
+        self.backbone = models.resnet50(weights=weights)
+        in_feats = self.backbone.fc.in_features  # 2048 for ResNet-50
+        self.backbone.fc = nn.Linear(in_feats, num_classes)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # x arrives as [B, 1, 64, 2]
+        # Step 1 — spatially upsample to the canonical 224×224 for ResNet:
+        #   [B, 1, 64, 2] → [B, 1, 224, 224]
+        x = F.interpolate(x, size=(224, 224), mode="bilinear", align_corners=False)
+
+        # Step 2 — duplicate the single channel across RGB:
+        #   [B, 1, 224, 224] → [B, 3, 224, 224]
+        x = x.repeat(1, 3, 1, 1)
+
+        # Step 3 — ResNet-50 forward pass:
+        #   [B, 3, 224, 224] → [B, num_classes] (logits)
+        return self.backbone(x)
