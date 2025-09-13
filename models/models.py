@@ -170,3 +170,81 @@ class ResNet50CSI(nn.Module):
         # Step 3 — ResNet-50 forward pass:
         #   [B, 3, 224, 224] → [B, num_classes] (logits)
         return self.backbone(x)
+
+
+###############################################################################
+
+# CSI_CLIP
+
+# CSIEncoder
+class CSIEncoder(nn.Module):
+    
+    """
+   1D Conv encoder for CSI shaped [B, 2, 64] (channels = [magnitude, angle]).
+   You can swap this to your complex CNN or a Transformer later.
+   """
+    
+    def __init__(self,in_ch=2, proj_dim = 256):
+        super().__init__()
+        
+        self.feat = nn.Sequential(
+            nn.Conv1d(in_channels = in_ch, out_channels = 64, kernel_size = 5, padding = 2), nn.ReLU(),
+            nn.Conv1d(in_channels = 64, out_channels=128, kernel_size=5, padding=2), nn.ReLU(),
+            nn.AdaptiveAvgPool1d(1)  # -> [B, 128, 1]
+        )
+        
+        self.proj = nn.Linear(128,proj_dim)
+        self.norm = nn.LayerNorm(proj_dim)
+        
+    
+    def forward(self,x): # x: [B, 2, 64]
+        h = self.feat(x).squeeze(-1) # [B, 128]
+        z = self.norm(self.proj(h)) # [B, d]
+        return F.normalize(z,dim = -1) # unit-norm embeddings
+    
+
+# LabelEmbedder
+
+class LabelEmbedder(nn.Module):
+    def __init__(self,num_classes, dim = 256):
+        super().__init__()
+        self.emb = nn.Embedding(num_embeddings=num_classes, embedding_dim=dim)
+        nn.init.normal_(self.emb.weight, std=0.02)
+        
+    def forward(self,y):
+        z = self.emb(y)
+        return F.normalize(z, dim=-1)
+    
+    
+    def table(self):
+        
+        return F.normalize(self.emb.weight,dim=1)
+    
+# clip model
+    
+class CSI_CLIP(nn.Module):
+    def __init__(self,csi_encoder: nn.Module, label_encoder: nn.Module):
+        super().__init__()
+        self.csi = csi_encoder
+        self.txt = label_encoder
+        self.logit_scale = nn.Parameter()
+        self.logit_scale = nn.Parameter(torch.tensor(math.log(1/0.07)))  # ~ ln(14.285)
+    
+    def forward(self,csi_batch, y_batch):
+        
+        """
+        Returns CLIP logits [B, B] comparing CSI ↔ labels of the SAME batch.
+        """
+        
+        zc = self.csi(csi_batch) # [B, d]
+        zt = self.txt(y_batch) # [B, d]
+        scale = self.logit_scale.exp().clamp(max=100.0)
+        return scale * zc @ zt.t()  # [B, B]
+    
+    @torch.no_grad()
+    def encode_csi(self, csi_batch):
+        return self.csi(csi_batch)
+    
+    @torch.no_grad()
+    def class_table(self):
+        return self.txt.table()
