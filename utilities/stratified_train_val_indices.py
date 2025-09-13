@@ -4,7 +4,7 @@ Created on Sat Sep 13 17:05:26 2025
 
 @author: fawaz243
 """
-
+SEED = 20250910
 def stratified_train_val_indices(y_tensor, train_ratio=0.9, seed=SEED):
     """
     Build a **deterministic, stratified** split of indices into TRAIN and VAL sets.

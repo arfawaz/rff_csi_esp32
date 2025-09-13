@@ -5,6 +5,8 @@ Created on Sat Sep 13 16:28:57 2025
 @author: fawaz243
 """
 
+import torch
+
 @torch.no_grad()
 def evaluate_zero_shot(model,loader, device):
     """

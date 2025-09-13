@@ -5,6 +5,8 @@ Created on Sat Sep 13 16:02:55 2025
 @author: fawaz243
 """
 
+import torch
+
 # CLIP normalization/augmentation wrapper
 class CSIDataset(torch.utils.data.Dataset):
     def __init__(self, x_2x64, y, normalize=True, augment=False):
