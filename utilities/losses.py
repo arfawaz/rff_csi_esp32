@@ -4,7 +4,8 @@ Created on Sat Sep 13 15:47:17 2025
 
 @author: fawaz243
 """
-
+import torch
+import torch.nn.functional as F
 # clip loss
 def clip_loss(logits):
     

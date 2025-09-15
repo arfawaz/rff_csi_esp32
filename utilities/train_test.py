@@ -12,6 +12,8 @@ import os
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader, TensorDataset, random_split
+from losses import clip_loss
+from evaluate_zero_shot import evaluate_zero_shot
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 

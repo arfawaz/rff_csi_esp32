@@ -4,7 +4,8 @@ Created on Sun Sep 14 14:30:53 2025
 
 @author: fawaz243
 """
-
+import torch
+import random
 def set_global_seed(seed: int):
     random.seed(seed)
     torch.manual_seed(seed)

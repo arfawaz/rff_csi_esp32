@@ -13,6 +13,9 @@ from torchvision.models import ResNet50_Weights
 from torchvision import models
 from transformers import ViTConfig, ViTForImageClassification, AdamW
 import math
+import torch.nn.functional as F
+from torchvision import models
+from torchvision.models import ResNet50_Weights
 
 ###############################################################################
 ###############################################################################
@@ -201,6 +204,55 @@ class CSIEncoder(nn.Module):
         h = self.feat(x).squeeze(-1) # [B, 128]
         z = self.norm(self.proj(h)) # [B, d]
         return F.normalize(z,dim = -1) # unit-norm embeddings
+    
+
+# CSIResNet50Encoder
+
+class CSIResNet50Encoder(nn.Module):
+    def __init__(self, proj_dim=256, pretrained=True, freeze_backbone_bn=False):
+        super().__init__()
+        weights = ResNet50_Weights.IMAGENET1K_V2 if pretrained else None
+        backbone = models.resnet50(weights=weights)
+
+        # Remove the final FC to expose the 2048-d pooled feature
+        in_feats = backbone.fc.in_features  # 2048
+        backbone.fc = nn.Identity()
+        self.backbone = backbone
+
+        # Project to CLIP embedding dim and layer-norm
+        self.proj = nn.Linear(in_feats, proj_dim)
+        self.ln = nn.LayerNorm(proj_dim)
+
+        # Optionally freeze BatchNorm stats if you like (helps small batches)
+        if freeze_backbone_bn:
+            self._freeze_bn(self.backbone)
+
+    @staticmethod
+    def _freeze_bn(module: nn.Module):
+        for m in module.modules():
+            if isinstance(m, nn.BatchNorm2d):
+                m.eval()
+                for p in m.parameters():
+                    p.requires_grad = False
+
+    def forward(self, x_2x64: torch.Tensor) -> torch.Tensor:
+        """
+        x_2x64: [B, 2, 64]
+        -> reshape to [B, 1, 64, 2]
+        -> resize to [B, 1, 224, 224]
+        -> repeat channels -> [B, 3, 224, 224]
+        -> ResNet-50 -> [B, 2048]
+        -> proj + LN -> [B, d]
+        -> L2 normalize
+        """
+        # Pack the two channels (e.g., mag/angle) into width=2 with a single channel
+        x = x_2x64.permute(0, 2, 1).unsqueeze(1)   # [B, 64, 2] -> [B, 1, 64, 2]
+        x = F.interpolate(x, size=(224, 224), mode="bilinear", align_corners=False)
+        x = x.repeat(1, 3, 1, 1)                   # [B, 3, 224, 224]
+
+        feats = self.backbone(x)                   # [B, 2048]
+        z = self.ln(self.proj(feats))              # [B, d]
+        return F.normalize(z, dim=-1)
     
 
 # LabelEmbedder

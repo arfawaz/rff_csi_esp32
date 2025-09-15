@@ -15,7 +15,7 @@ from train_test_loader import train_test_loader
 from train_vit_model_2 import train_vit_model_2
 from test_vit_model_2 import test_vit_model_2
 from CustomDataset_vit_model_2 import CustomDataset_vit_model_2
-from models import SimpleCNN, vit_model_2, ResNet50CSI
+from models import SimpleCNN, vit_model_2, ResNet50CSI, CSIEncoder, LabelEmbedder, CSIResNet50Encoder, CSI_CLIP
 from torch.utils.data import Subset, DataLoader, TensorDataset, random_split
 from transformers import AdamW
 import torch.nn as nn
@@ -33,6 +33,9 @@ import torch
 import torch.nn.functional as F
 from torchvision import models
 from torchvision.models import ResNet50_Weights
+from set_global_seed import set_global_seed
+from losses import clip_loss
+from evaluate_zero_shot import evaluate_zero_shot
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
@@ -330,3 +333,188 @@ _ = test(model_3, train_loader_cnn_test)
 
 ###############################################################################
 
+#%% Training and testing the CSI_CLIP based model, simpleCNN, ResNet50CSI on the same dataset.
+
+# This cell is used for leaoding the same dataset for cnn, ResNet50CSI and clip model.
+
+SEED = 20250910
+SHARED_SPLIT_FILE = f"shared_train_val_split_seed{SEED}.pt"
+
+set_global_seed(SEED)
+
+
+file_path = input("Please enter the file path to CSV files for train data: ")
+
+MAC_ID_LIST = [
+    "00:FC:BA:38:4B:00",
+    "00:FC:BA:38:4B:01",
+    "00:FC:BA:38:4B:02",
+    "6C:B2:AE:39:1A:A0",
+    "6C:B2:AE:39:1A:A1",
+    "70:0F:6A:DE:EC:A0",
+    "70:0F:6A:DE:EC:A1",
+    "70:0F:6A:DE:EC:A2",
+]
+
+data, labels = process_csv_fixed_id_uniform_sampling_rssi(file_path = file_path , mac_id_list = MAC_ID_LIST, max_samples_per_mac=100000000)
+    
+print("Done data loading Data and Labels from CSV")
+
+
+
+# --------------------------
+# Build full TRAIN sets (once)
+#   data:   [N, 64, 2]
+#   labels: [N]
+# --------------------------
+labels = labels.long()
+N = data.size(0)
+
+# CNN view: [N,1,64,2] + mean_norm()
+x_cnn_full = mean_norm(data.unsqueeze(1).float())
+cnn_full_ds = TensorDataset(x_cnn_full, labels)
+
+# CLIP base view: [N,2,64] (normalize/augment inside wrapper)
+x_clip_base = data.permute(0, 2, 1).float()  # [N,2,64]
+
+if os.path.exists(SHARED_SPLIT_FILE):
+    split = torch.load(SHARED_SPLIT_FILE)
+    train_idx, val_idx = split["train_idx"], split["val_idx"]
+    assert max(train_idx + val_idx) < N, \
+        "Saved split indices exceed current TRAIN dataset size. Delete split file and re-run."
+else:
+    train_idx, val_idx = stratified_train_val_indices(labels, train_ratio=0.9, seed=SEED)
+    torch.save({"train_idx": train_idx, "val_idx": val_idx}, SHARED_SPLIT_FILE)
+
+print(f"[TRAIN CSV] TRAIN={len(train_idx)} | VAL={len(val_idx)}  (seed={SEED})")
+
+# CNN loaders (use these in your CNN train/test functions)
+cnn_train_loader, cnn_val_loader = make_loaders_for_dataset(cnn_full_ds, train_idx, val_idx, batch_size=64)
+
+# CLIP datasets (train uses aug; val no aug)
+clip_train_full = CSIDataset(x_clip_base, labels, normalize=True, augment=True);  clip_train_full.train_mode = True
+clip_val_full   = CSIDataset(x_clip_base, labels, normalize=True, augment=False); clip_val_full.train_mode   = False
+clip_train_ds = Subset(clip_train_full, train_idx)
+clip_val_ds   = Subset(clip_val_full,   val_idx)
+
+print("[TRAIN/VAL] Shared splits ready for CNN and CLIP.")
+
+# --------------------------
+# TEST set: load from a NEW CSV ONE TIME and reuse for BOTH
+# --------------------------
+# Ensure deterministic sub-sampling inside your CSV loader
+random.seed(SEED)
+
+test_file_path = input("Please enter the file path to the TEST CSV file: ")
+
+test_data, test_labels = process_csv_fixed_id_uniform_sampling_rssi(
+    file_path=test_file_path,
+    mac_id_list=MAC_ID_LIST,
+    max_samples_per_mac=1_000_000
+)
+assert test_data is not None and test_labels is not None, "No valid test data found in TEST CSV."
+test_labels = test_labels.long()
+
+
+# CNN TEST loader (entire TEST set)
+x_cnn_test = mean_norm(test_data.unsqueeze(1).float())
+cnn_test_ds = TensorDataset(x_cnn_test, test_labels)
+cnn_test_loader = DataLoader(cnn_test_ds, batch_size=64, shuffle=False, num_workers=0, pin_memory=True)
+
+# CLIP TEST loader (entire TEST set; normalized, no aug)
+x_clip_test = test_data.permute(0, 2, 1).float()  # [M,2,64]
+clip_test_ds = CSIDataset(x_clip_test, test_labels, normalize=True, augment=False)
+clip_test_ds.train_mode = False
+clip_test_loader = DataLoader(clip_test_ds, batch_size=64, shuffle=False, num_workers=0, pin_memory=True)
+
+print(f"[TEST CSV] TEST={len(test_labels)} (shared for both models)")
+
+#%% Training the cnn-3 model with training data loaded from previous cell. Testing the cnn-3 model with testing data loaded from previous cell. 
+
+print("Starting training the loaded data on cnn-3 model")
+num_classes = 8
+learning_rate = 0.001
+num_epochs = 2
+# Model setup
+model_1 = SimpleCNN(num_classes)
+model_1 = model_1.to(device)
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(model_1.parameters(), lr=learning_rate)
+
+# Model Training
+model_1.train()
+train(model=model_1, 
+      train_loader=cnn_train_loader, 
+      test_loader=cnn_val_loader, 
+      criterion=criterion, 
+      optimizer=optimizer, 
+      num_epochs=num_epochs)
+
+print("Trianing finished on cnn-3 model")
+
+print("Testing the data cnn-3 model on the loaded testing data")
+# Model Testing
+model_1.eval()
+_ = test(model_1, cnn_test_loader)
+
+print("Testing finished on cnn-3 model")
+
+#%% Training the ResNet50CSI model with training data loaded from previous cell. Testing the cnn-3 model with testing data loaded from previous cell.
+
+model_3 = ResNet50CSI(num_classes=num_classes, pretrained=True).to(device)
+resnet_lr = 1e-4
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(model_3.parameters(), lr=resnet_lr)
+
+# Train
+model_3.train()
+train(
+    model=model_3,
+    train_loader=cnn_train_loader,
+    test_loader=cnn_val_loader,
+    criterion=criterion,
+    optimizer=optimizer,
+    num_epochs=1
+)
+
+# Evaluate on primary test set
+model_3.eval()
+_ = test(model_3, cnn_test_loader)
+
+
+#%% Training the CSI_CLIP model with cnn-3 CSI encoder training data loaded from previous cell. Testing the CSI_CLIP model with cnn-3 CSI encoder model with testing data loaded from previous cell.
+
+# Assuming you have CSI_CLIP, CSIEncoder, LabelEmbedder, evaluate_zero_shot, and train(...) from earlier
+num_classes = len(MAC_ID_LIST)
+clip_model = CSI_CLIP(
+    csi_encoder=CSIEncoder(in_ch=2, proj_dim=256),
+    label_encoder=LabelEmbedder(num_classes=num_classes, dim=256),
+)
+
+trained_clip = train_clip(
+    clip_model, clip_train_ds, clip_val_ds,
+    epochs=1, batch_size=64, lr=1e-3, wd=1e-4, num_workers=0, device="cuda"
+)
+
+# Final test on the external TEST CSV (same samples as CNN)
+clip_test_acc = evaluate_zero_shot(trained_clip, clip_test_loader, device=("cuda" if torch.cuda.is_available() else "cpu"))
+print(f"[CLIP] TEST top-1: {clip_test_acc*100:.2f}%")
+
+
+#%% Training the CSI_CLIP model with  CSIResNet50 encoder training data loaded from previous cell. Testing CSI_CLIP model with  CSIResNet50 encoder model with testing data loaded from previous cell. 
+
+num_classes = len(MAC_ID_LIST)
+
+clip_model_resnet = CSI_CLIP(
+    csi_encoder=CSIResNet50Encoder(proj_dim=256, pretrained=True, freeze_backbone_bn=False),
+    label_encoder=LabelEmbedder(num_classes=num_classes, dim=256),
+).to(device)
+
+trained_clip = train_clip(
+    clip_model_resnet, clip_train_ds, clip_val_ds,
+    epochs=1, batch_size=64, lr=1e-4, wd=1e-4, num_workers=0, device="cuda"
+)
+
+# Final test on the external TEST CSV (same samples as CNN)
+clip_test_acc = evaluate_zero_shot(trained_clip, clip_test_loader, device=("cuda" if torch.cuda.is_available() else "cpu"))
+print(f"[CLIP] TEST top-1: {clip_test_acc*100:.2f}%")   
