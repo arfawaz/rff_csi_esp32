@@ -16,6 +16,8 @@ import math
 import torch.nn.functional as F
 from torchvision import models
 from torchvision.models import ResNet50_Weights
+import hashlib
+import math
 
 ###############################################################################
 ###############################################################################
@@ -45,6 +47,70 @@ class SimpleCNN(nn.Module):
         x = torch.relu(self.fc1(x))
         x = self.fc2(x)
         return x
+
+###############################################################################
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+class CNN_2(nn.Module):
+    def __init__(self, num_classes: int, in_ch: int = 2, proj_dim: int = 256, l2norm: bool = True):
+        super().__init__()
+        self.feat = nn.Sequential(
+            nn.Conv1d(in_channels=in_ch, out_channels=64, kernel_size=5, padding=2),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(in_channels=64, out_channels=128, kernel_size=5, padding=2),
+            nn.ReLU(inplace=True),
+            nn.AdaptiveAvgPool1d(1)
+        )
+        self.proj = nn.Linear(128, proj_dim)
+        self.norm = nn.LayerNorm(proj_dim)
+        self.classifier = nn.Linear(proj_dim, num_classes)
+        self.l2norm = l2norm
+
+    @staticmethod
+    def _to_BCL(x: torch.Tensor) -> torch.Tensor:
+        """
+        Normalize CSI shapes to [B, C=2, L=64].
+        Accepts:
+          [B, 2, 64]           -> return as is
+          [B, 64, 2]           -> permute to [B, 2, 64]
+          [B, 1, 64, 2]        -> squeeze+permute to [B, 2, 64]
+          [B, 64, 2, 1] / etc. -> try to move last dim=2 into channels
+        """
+        if x.dim() == 3:
+            if x.shape[1] == 2:           # [B, 2, 64]
+                return x
+            if x.shape[2] == 2:           # [B, 64, 2]
+                return x.permute(0, 2, 1).contiguous()
+        if x.dim() == 4:
+            # Common case from old 2D pipelines: [B, 1, 64, 2]
+            if x.shape[1] == 1 and x.shape[3] == 2:
+                x = x.squeeze(1)          # [B, 64, 2]
+                return x.permute(0, 2, 1).contiguous()  # [B, 2, 64]
+            # If someone left a trailing singleton: [B, 2, 64, 1]
+            if x.shape[1] == 2 and x.shape[3] == 1:
+                return x.squeeze(-1).contiguous()       # [B, 2, 64]
+        raise ValueError(f"Unexpected CSI tensor shape {tuple(x.shape)}; need [B,2,64] logically.")
+
+    def encode(self, x: torch.Tensor) -> torch.Tensor:
+        x = self._to_BCL(x).float()
+        h = self.feat(x).squeeze(-1)           # [B, 128]
+        z = self.norm(self.proj(h))            # [B, proj_dim]
+        if self.l2norm:
+            z = F.normalize(z, dim=-1)
+        return z
+
+    def forward(self, x: torch.Tensor, return_embedding: bool = False):
+        z = self.encode(x)
+        logits = self.classifier(z)
+        return (logits, z) if return_embedding else logits
+
 
 ###############################################################################
 
@@ -272,6 +338,142 @@ class LabelEmbedder(nn.Module):
         
         return F.normalize(self.emb.weight,dim=1)
     
+###############################################################################
+
+
+def _mac_hex_to_vec(mac_str: str, out_dim: int = 64) -> torch.Tensor:
+    """
+    Deterministically maps a hex MAC string to a real vector in R^{out_dim}.
+    - Uses SHA-256 of a canonicalized MAC (lower, strip colons).
+    - Maps bytes -> floats in [-1, 1], then z-score normalizes.
+
+    This function has NO learnable parameters and is deterministic across runs.
+    """
+    canon = mac_str.lower().replace(":", "").strip()
+    h = hashlib.sha256(canon.encode("utf-8")).digest()  # 32 bytes
+    # Tile or truncate to reach out_dim bytes
+    raw = (h * ((out_dim + len(h) - 1) // len(h)))[:out_dim]
+    v = torch.tensor(list(raw), dtype=torch.float32)
+    v = v / 255.0 * 2.0 - 1.0  # map to [-1, 1]
+    # z-score normalize (avoid zero std with eps)
+    v = (v - v.mean()) / (v.std().clamp_min(1e-6))
+    return v
+
+class LabelHexProjector(nn.Module):
+    """
+    MAC-only label embedder:
+      1) Precompute a deterministic vector φ_hex(mac) ∈ R^{hex_dim} for each class.
+      2) Apply a learnable linear map W ∈ R^{hex_dim × D} to get 256-D embeddings.
+      3) L2-normalize outputs.
+
+    This replaces the usual nn.Embedding with a "deterministic input → learnable projector".
+    """
+    def __init__(self, mac_id_list, dim: int = 256, hex_dim: int = 64):
+        super().__init__()
+        self.dim = dim
+        self.hex_dim = hex_dim
+        self.mac_id_list = list(mac_id_list)
+
+        # Precompute base vectors as a fixed table [C, hex_dim]
+        base = torch.stack([_mac_hex_to_vec(m, out_dim=hex_dim) for m in self.mac_id_list], dim=0)
+        self.register_buffer("_base", base)  # not learnable
+
+        # Learnable projection
+        self.proj = nn.Linear(hex_dim, dim, bias=False)
+        nn.init.normal_(self.proj.weight, std=0.02)
+
+    def forward(self, y_idx: torch.Tensor) -> torch.Tensor:
+        # [B, hex_dim] -> [B, D]
+        v = self._base.index_select(0, y_idx)
+        z = self.proj(v)
+        return F.normalize(z, dim=-1)
+
+    @torch.no_grad()
+    def table(self) -> torch.Tensor:
+        # Class prototype table [C, D]
+        z = self.proj(self._base)
+        return F.normalize(z, dim=-1)
+
+class MacLocationRFF(nn.Module):
+    """
+    Fixed (non-learnable) 3D-location embedding using Random Fourier Features (RFF).
+    Goal: preserve distances/angles structure in a 256-D feature.
+
+    φ_rff(x) = [cos(xΩ), sin(xΩ)] with Ω ∈ R^{3×(D/2)} sampled from N(0, σ^2).
+    Everything here is REGISTERED AS BUFFERS (no gradients).
+
+    Args:
+      mac_id_list : list[str], same order as your class indices
+      mac_to_xyz  : dict[str] -> (x,y,z), coordinates (e.g., meters)
+      dim         : output embedding dim (use 256)
+      sigma       : frequency scale (smaller => slower variation). Try 0.5..2.0
+      seed        : to fix Ω deterministically
+      coord_scale : multiply (x,y,z) before projection (helps unit matching)
+    """
+    def __init__(self, mac_id_list, mac_to_xyz: dict, dim: int = 256,
+                 sigma: float = 1.0, seed: int = 20250910, coord_scale: float = 1.0):
+        super().__init__()
+        assert dim % 2 == 0, "dim must be even for [cos, sin] features"
+        self.dim = dim
+        self.mac_id_list = list(mac_id_list)
+
+        # Build Ω ∈ R^{3×(D/2)} deterministically
+        gen = torch.Generator().manual_seed(seed)
+        omega = torch.randn(3, dim // 2, generator=gen) * sigma  # N(0, σ^2)
+        self.register_buffer("_omega", omega)
+
+        # Build location table [C, D] with φ_rff(x)
+        loc_rows = []
+        for mac in self.mac_id_list:
+            xyz = mac_to_xyz.get(mac, (0.0, 0.0, 0.0))
+            x = torch.tensor(xyz, dtype=torch.float32) * coord_scale  # [3]
+            proj = x @ self._omega  # [D/2]
+            feat = torch.cat([torch.cos(proj), torch.sin(proj)], dim=-1)  # [D]
+            # z-score then L2 normalize per row to stabilize scales
+            feat = (feat - feat.mean()) / feat.std().clamp_min(1e-6)
+            loc_rows.append(F.normalize(feat, dim=-1))
+        table = torch.stack(loc_rows, dim=0)  # [C, D]
+        self.register_buffer("_table", table)
+
+    def forward(self, y_idx: torch.Tensor) -> torch.Tensor:
+        return self._table.index_select(0, y_idx)  # already L2-normalized
+
+    @torch.no_grad()
+    def table(self) -> torch.Tensor:
+        return self._table  # [C, D], L2-normalized rows
+
+class LabelHexPlusLoc(nn.Module):
+    """
+    Combined label embedding:
+       z_label = normalize( z_mac_hex + λ * z_loc_rff )
+
+    - z_mac_hex comes from LabelHexProjector (learnable).
+    - z_loc_rff comes from MacLocationRFF (fixed, non-learnable).
+    - λ is a fixed mixing weight (float).
+
+    Both forward(y) and table() return 256-D L2-normalized embeddings.
+    """
+    def __init__(self, mac_id_list, mac_to_xyz: dict,
+                 dim: int = 256, hex_dim: int = 64,
+                 lambda_pos: float = 1.0, sigma: float = 1.0,
+                 seed: int = 20250910, coord_scale: float = 1.0):
+        super().__init__()
+        self.mac = LabelHexProjector(mac_id_list, dim=dim, hex_dim=hex_dim)
+        self.loc = MacLocationRFF(mac_id_list, mac_to_xyz, dim=dim,
+                                  sigma=sigma, seed=seed, coord_scale=coord_scale)
+        self.register_buffer("_lambda_pos", torch.tensor(float(lambda_pos)))
+
+    def forward(self, y_idx: torch.Tensor) -> torch.Tensor:
+        z = self.mac(y_idx) + self._lambda_pos * self.loc(y_idx)
+        return F.normalize(z, dim=-1)
+
+    @torch.no_grad()
+    def table(self) -> torch.Tensor:
+        z = self.mac.table() + self._lambda_pos * self.loc.table()
+        return F.normalize(z, dim=-1)
+
+
+###############################################################################
 # clip model
     
 class CSI_CLIP(nn.Module):
@@ -300,3 +502,5 @@ class CSI_CLIP(nn.Module):
     @torch.no_grad()
     def class_table(self):
         return self.txt.table()
+
+
