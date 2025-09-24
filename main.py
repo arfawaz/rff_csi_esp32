@@ -15,7 +15,7 @@ from train_test_loader import train_test_loader
 from train_vit_model_2 import train_vit_model_2
 from test_vit_model_2 import test_vit_model_2
 from CustomDataset_vit_model_2 import CustomDataset_vit_model_2
-from models import SimpleCNN, vit_model_2, ResNet50CSI, CSIEncoder, LabelEmbedder, CSIResNet50Encoder, CSI_CLIP
+from models import SimpleCNN, vit_model_2, ResNet50CSI, CSIEncoder, LabelEmbedder, CSIResNet50Encoder, CSI_CLIP, CNN_2, LabelHexProjector, LabelHexPlusLoc
 from torch.utils.data import Subset, DataLoader, TensorDataset, random_split
 from transformers import AdamW
 import torch.nn as nn
@@ -36,6 +36,36 @@ from torchvision.models import ResNet50_Weights
 from set_global_seed import set_global_seed
 from losses import clip_loss
 from evaluate_zero_shot import evaluate_zero_shot
+import json, datetime
+from pathlib import Path
+import optuna
+from optuna.pruners import MedianPruner
+from torch.utils.data import DataLoader
+
+from optuna_helper_functions import (
+    _jsonify,
+    save_study_best,
+    save_checkpoint,
+    HAS_DATASETS,
+    make_cls_loaders_for_trial,
+    objective_cnn2_classifier,
+    run_study_cnn2,
+    retrain_and_test_cnn2,
+    objective_resnet50csi_classifier,
+    run_study_resnet50csi,
+    retrain_and_test_resnet50csi,
+    train_clip_once,
+    suggest_common_hparams,
+    build_cnn_encoder,
+    build_resnet_encoder,
+    objective_clip_cnn_mac,
+    objective_clip_cnn_mac_loc,
+    objective_clip_resnet_mac,
+    objective_clip_resnet_mac_loc,
+    run_study,
+    retrain_and_test,
+)
+
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
@@ -342,8 +372,8 @@ SHARED_SPLIT_FILE = f"shared_train_val_split_seed{SEED}.pt"
 
 set_global_seed(SEED)
 
-
-file_path = input("Please enter the file path to CSV files for train data: ")
+file_path = r"C:\Users\fawaz\OneDrive - University of South Florida\Desktop\csi_expts_from_jul_2025\openai_clip_based\individual_positions\p1_p2_p3_p4_p5_p6_p7_p8\train\train.csv"
+#file_path = input("Please enter the file path to CSV files for train data: ")
 
 MAC_ID_LIST = [
     "00:FC:BA:38:4B:00",
@@ -405,7 +435,8 @@ print("[TRAIN/VAL] Shared splits ready for CNN and CLIP.")
 # Ensure deterministic sub-sampling inside your CSV loader
 random.seed(SEED)
 
-test_file_path = input("Please enter the file path to the TEST CSV file: ")
+test_file_path = r"C:\Users\fawaz\OneDrive - University of South Florida\Desktop\csi_expts_from_jul_2025\openai_clip_based\individual_positions\p1_p2_p3_p4_p5_p6_p7_p8\test\test.csv"
+#test_file_path = input("Please enter the file path to the TEST CSV file: ")
 
 test_data, test_labels = process_csv_fixed_id_uniform_sampling_rssi(
     file_path=test_file_path,
@@ -429,12 +460,119 @@ clip_test_loader = DataLoader(clip_test_ds, batch_size=64, shuffle=False, num_wo
 
 print(f"[TEST CSV] TEST={len(test_labels)} (shared for both models)")
 
-#%% Training the cnn-3 model with training data loaded from previous cell. Testing the cnn-3 model with testing data loaded from previous cell. 
 
-print("Starting training the loaded data on cnn-3 model")
+#%% Training and testing the CSI_CLIP based model, simpleCNN, ResNet50CSI on the same dataset.
+# Uses explicit TRAIN / VAL / TEST CSVs (no split). All models see the same samples.
+
+SEED = 20250910
+set_global_seed(SEED)
+
+# --------------------------
+# File paths
+# --------------------------
+train_file_path = r"C:\Users\fawaz\OneDrive - University of South Florida\Desktop\csi_expts_from_jul_2025\openai_clip_based\individual_positions\p1_p2_p3_p4_p5_p6_p7_p8\train_balanced\train_balanced_all.csv"  # entire training set
+val_file_path   = r"C:\Users\fawaz\OneDrive - University of South Florida\Desktop\csi_expts_from_jul_2025\openai_clip_based\individual_positions\p1_p2_p3_p4_p5_p6_p7_p8\val_balanced\val_balanced_all.csv"      # entirely separate validation set
+test_file_path  = r"C:\Users\fawaz\OneDrive - University of South Florida\Desktop\csi_expts_from_jul_2025\openai_clip_based\individual_positions\p1_p2_p3_p4_p5_p6_p7_p8\test_balanced\test_balanced_all.csv"    # entirely separate test set
+
+MAC_ID_LIST = [
+    "00:FC:BA:38:4B:00",
+    "00:FC:BA:38:4B:01",
+    "00:FC:BA:38:4B:02",
+    "6C:B2:AE:39:1A:A0",
+    "6C:B2:AE:39:1A:A1",
+    "70:0F:6A:DE:EC:A0",
+    "70:0F:6A:DE:EC:A1",
+    "70:0F:6A:DE:EC:A2",
+]
+
+
+# Cap (per MAC) used by the CSV loader; keep consistent across splits for fairness
+MAX_SAMPLES_PER_MAC_TRAIN = 120_274
+MAX_SAMPLES_PER_MAC_VAL   = 25_023
+MAX_SAMPLES_PER_MAC_TEST  = 26_398
+
+# --------------------------
+# TRAIN set (entire CSV)
+# --------------------------
+# NOTE: set_global_seed above already seeds Python/torch. The CSV loader uses random.sample;
+# this makes the uniform sub-sampling per-MAC reproducible.
+train_data, train_labels = process_csv_fixed_id_uniform_sampling_rssi(
+    file_path=train_file_path,
+    mac_id_list=MAC_ID_LIST,
+    max_samples_per_mac=MAX_SAMPLES_PER_MAC_TRAIN
+)
+assert train_data is not None, "No valid TRAIN data found."
+train_labels = train_labels.long()
+
+# CNN view (TRAIN): [N,1,64,2] + mean_norm()
+x_cnn_train = mean_norm(train_data.unsqueeze(1).float())
+cnn_train_ds = TensorDataset(x_cnn_train, train_labels)
+cnn_train_loader = DataLoader(cnn_train_ds, batch_size=64, shuffle=True, num_workers=0, pin_memory=True, drop_last=True)
+
+# CLIP view (TRAIN): [N,2,64] (norm/aug in CSIDataset)
+x_clip_train = train_data.permute(0, 2, 1).float()
+clip_train_ds = CSIDataset(x_clip_train, train_labels, normalize=True, augment=True)
+clip_train_ds.train_mode = True  # enable aug in loader built inside train_clip
+
+print(f"[TRAIN CSV] TRAIN={len(train_labels)}")
+
+# --------------------------
+# VAL set (entire CSV)
+# --------------------------
+# Ensure deterministic uniform sub-sampling per MAC for VAL as well
+random.seed(SEED)
+val_data, val_labels = process_csv_fixed_id_uniform_sampling_rssi(
+    file_path=val_file_path,
+    mac_id_list=MAC_ID_LIST,
+    max_samples_per_mac=MAX_SAMPLES_PER_MAC_VAL
+)
+assert val_data is not None, "No valid VAL data found."
+val_labels = val_labels.long()
+
+# CNN view (VAL)
+x_cnn_val = mean_norm(val_data.unsqueeze(1).float())
+cnn_val_ds = TensorDataset(x_cnn_val, val_labels)
+cnn_val_loader = DataLoader(cnn_val_ds, batch_size=64, shuffle=False, num_workers=0, pin_memory=True)
+
+# CLIP view (VAL)
+x_clip_val = val_data.permute(0, 2, 1).float()
+clip_val_ds = CSIDataset(x_clip_val, val_labels, normalize=True, augment=False)
+clip_val_ds.train_mode = False
+
+print(f"[VAL CSV]   VAL={len(val_labels)}")
+
+# --------------------------
+# TEST set (entire CSV) — shared for all models
+# --------------------------
+random.seed(SEED)
+test_data, test_labels = process_csv_fixed_id_uniform_sampling_rssi(
+    file_path=test_file_path,
+    mac_id_list=MAC_ID_LIST,
+    max_samples_per_mac=MAX_SAMPLES_PER_MAC_TEST
+)
+assert test_data is not None and test_labels is not None, "No valid TEST data found."
+test_labels = test_labels.long()
+
+# CNN view (TEST)
+x_cnn_test = mean_norm(test_data.unsqueeze(1).float())
+cnn_test_ds = TensorDataset(x_cnn_test, test_labels)
+cnn_test_loader = DataLoader(cnn_test_ds, batch_size=64, shuffle=False, num_workers=0, pin_memory=True)
+
+# CLIP view (TEST)
+x_clip_test = test_data.permute(0, 2, 1).float()
+clip_test_ds = CSIDataset(x_clip_test, test_labels, normalize=True, augment=False)
+clip_test_ds.train_mode = False
+clip_test_loader = DataLoader(clip_test_ds, batch_size=64, shuffle=False, num_workers=0, pin_memory=True)
+
+print(f"[TEST CSV]  TEST={len(test_labels)} (shared for all models)")
+
+
+#%% Training the simpleCNN model with training data loaded from previous cell. Testing the cnn-3 model with testing data loaded from previous cell. 
+
+print("Starting training the loaded data on simpleCNN model")
 num_classes = 8
 learning_rate = 0.001
-num_epochs = 2
+num_epochs = 10
 # Model setup
 model_1 = SimpleCNN(num_classes)
 model_1 = model_1.to(device)
@@ -450,17 +588,50 @@ train(model=model_1,
       optimizer=optimizer, 
       num_epochs=num_epochs)
 
-print("Trianing finished on cnn-3 model")
+print("Trianing finished on simpleCNN model")
 
-print("Testing the data cnn-3 model on the loaded testing data")
+print("Testing the data simpleCNN model on the loaded testing data")
 # Model Testing
 model_1.eval()
 _ = test(model_1, cnn_test_loader)
 
-print("Testing finished on cnn-3 model")
+print("Testing finished on simpleCNN model")
+
+#%% Training the CNN_2 model with training data loaded from previous cell. Testing the cnn-3 model with testing data loaded from previous cell.
+
+print("Starting training the loaded data on CNN_2 model")
+num_classes = 8
+learning_rate = 0.001
+num_epochs = 10
+# Model setup
+model_1 = CNN_2(num_classes)
+model_1 = model_1.to(device)
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(model_1.parameters(), lr=learning_rate)
+
+# Model Training
+model_1.train()
+train(model=model_1, 
+      train_loader=cnn_train_loader, 
+      test_loader=cnn_val_loader, 
+      criterion=criterion, 
+      optimizer=optimizer, 
+      num_epochs=num_epochs)
+
+print("Trianing finished on CNN_2 model")
+
+print("Testing the data CNN_2 model on the loaded testing data")
+# Model Testing
+model_1.eval()
+_ = test(model_1, cnn_test_loader)
+
+print("Testing finished on CNN_2 model")
+
+
 
 #%% Training the ResNet50CSI model with training data loaded from previous cell. Testing the cnn-3 model with testing data loaded from previous cell.
 
+num_classes = 8
 model_3 = ResNet50CSI(num_classes=num_classes, pretrained=True).to(device)
 resnet_lr = 1e-4
 criterion = nn.CrossEntropyLoss()
@@ -474,7 +645,7 @@ train(
     test_loader=cnn_val_loader,
     criterion=criterion,
     optimizer=optimizer,
-    num_epochs=1
+    num_epochs=4
 )
 
 # Evaluate on primary test set
@@ -482,7 +653,7 @@ model_3.eval()
 _ = test(model_3, cnn_test_loader)
 
 
-#%% Training the CSI_CLIP model with cnn-3 CSI encoder training data loaded from previous cell. Testing the CSI_CLIP model with cnn-3 CSI encoder model with testing data loaded from previous cell.
+#%% Training the CSI_CLIP model with CNN_2 CSI encoder training data loaded from previous cell. Testing the CSI_CLIP model with cnn-3 CSI encoder model with testing data loaded from previous cell.
 
 # Assuming you have CSI_CLIP, CSIEncoder, LabelEmbedder, evaluate_zero_shot, and train(...) from earlier
 num_classes = len(MAC_ID_LIST)
@@ -493,7 +664,7 @@ clip_model = CSI_CLIP(
 
 trained_clip = train_clip(
     clip_model, clip_train_ds, clip_val_ds,
-    epochs=1, batch_size=64, lr=1e-3, wd=1e-4, num_workers=0, device="cuda"
+    epochs=10, batch_size=64, lr=1e-3, wd=1e-4, num_workers=0, device="cuda"
 )
 
 # Final test on the external TEST CSV (same samples as CNN)
@@ -518,3 +689,151 @@ trained_clip = train_clip(
 # Final test on the external TEST CSV (same samples as CNN)
 clip_test_acc = evaluate_zero_shot(trained_clip, clip_test_loader, device=("cuda" if torch.cuda.is_available() else "cpu"))
 print(f"[CLIP] TEST top-1: {clip_test_acc*100:.2f}%")   
+
+#%% CSI_CLIP with CNN_2 CSI enoder with MAC hex -> learnable projector 
+# ======= Reuse EXACT SAME loaders/splits you already created =======
+# clip_train_ds, clip_val_ds, clip_test_loader come from your code.
+
+# Provide MAC → (x,y,z) dict (meters), keys must match MAC_ID_LIST entries:
+mac_to_xyz = {
+    "00:FC:BA:38:4B:00": (19.61, 18.60, 4),
+    "00:FC:BA:38:4B:01": (19.61, 18.60, 4),
+    "00:FC:BA:38:4B:02": (19.61, 18.60, 4),
+    "6C:B2:AE:39:1A:A0": (17.83, 11.30, 4),
+    "6C:B2:AE:39:1A:A1": (17.83, 11.30, 4),
+    "70:0F:6A:DE:EC:A0": (15.66, 11.30, 4),
+    "70:0F:6A:DE:EC:A1": (15.66, 11.30, 4),
+    "70:0F:6A:DE:EC:A2": (15.66, 11.30, 4),
+}
+
+num_classes = len(MAC_ID_LIST)
+
+# ---------------------------
+# (1) CSI = 2-layer CNN; Label = MAC hex → learnable projector
+# ---------------------------
+model_1 = CSI_CLIP(
+    csi_encoder=CSIEncoder(in_ch=2, proj_dim=256),                 # REUSED encoder (CNN) :contentReference[oaicite:7]{index=7}
+    label_encoder=LabelHexProjector(MAC_ID_LIST, dim=256, hex_dim=64)  # NEW
+)
+trained_1 = train_clip(model_1, clip_train_ds, clip_val_ds,
+                       epochs=10, batch_size=64, lr=1e-3, wd=1e-4,
+                       num_workers=0, device=("cuda" if torch.cuda.is_available() else "cpu"))  # REUSED loop :contentReference[oaicite:8]{index=8}
+acc_1 = evaluate_zero_shot(trained_1, clip_test_loader, device=("cuda" if torch.cuda.is_available() else "cpu"))
+print(f"(1) CNN + MAC(hex→learnable) TEST top-1: {acc_1*100:.2f}%")
+
+#%% CSI_CLIP with CNN_2 CSI enoder with MAC hex → learnable  +  fixed location RFF
+# ---------------------------
+# (2) CSI = 2-layer CNN; Label = MAC hex → learnable  +  fixed location RFF
+# ---------------------------
+model_2 = CSI_CLIP(
+    csi_encoder=CSIEncoder(in_ch=2, proj_dim=256),                 # REUSED
+    label_encoder=LabelHexPlusLoc(MAC_ID_LIST, mac_to_xyz,
+                                  dim=256, hex_dim=64,
+                                  lambda_pos=1.0, sigma=1.0,
+                                  seed=SEED, coord_scale=1.0)      # NEW
+)
+trained_2 = train_clip(model_2, clip_train_ds, clip_val_ds,
+                       epochs=10, batch_size=64, lr=1e-3, wd=1e-4,
+                       num_workers=0, device=("cuda" if torch.cuda.is_available() else "cpu"))  # REUSED
+acc_2 = evaluate_zero_shot(trained_2, clip_test_loader, device=("cuda" if torch.cuda.is_available() else "cpu"))
+print(f"(2) CNN + MAC(hex→learnable)+LOC(RFF) TEST top-1: {acc_2*100:.2f}%")
+
+#%% CSI_CLIP with ResNet50 CSI enoder with MAC hex → learnable
+# ---------------------------
+# (3) CSI = ResNet50; Label = MAC hex → learnable projector
+# ---------------------------
+model_3 = CSI_CLIP(
+    csi_encoder=CSIResNet50Encoder(proj_dim=256, pretrained=True), # REUSED encoder (ResNet50) :contentReference[oaicite:9]{index=9}
+    label_encoder=LabelHexProjector(MAC_ID_LIST, dim=256, hex_dim=64)  # NEW
+)
+trained_3 = train_clip(model_3, clip_train_ds, clip_val_ds,
+                       epochs=10, batch_size=64, lr=1e-3, wd=1e-4,
+                       num_workers=0, device=("cuda" if torch.cuda.is_available() else "cpu"))  # REUSED
+acc_3 = evaluate_zero_shot(trained_3, clip_test_loader, device=("cuda" if torch.cuda.is_available() else "cpu"))
+print(f"(3) ResNet50 + MAC(hex→learnable) TEST top-1: {acc_3*100:.2f}%")
+
+#%% CSI_CLIP with ResNet50 CSI enoder with MAC hex → learnable +  fixed location RFF
+# ---------------------------
+# (4) CSI = ResNet50; Label = MAC hex → learnable  +  fixed location RFF
+# ---------------------------
+model_4 = CSI_CLIP(
+    csi_encoder=CSIResNet50Encoder(proj_dim=256, pretrained=True), # REUSED
+    label_encoder=LabelHexPlusLoc(MAC_ID_LIST, mac_to_xyz,
+                                  dim=256, hex_dim=64,
+                                  lambda_pos=1.0, sigma=1.0,
+                                  seed=SEED, coord_scale=1.0)      # NEW
+)
+trained_4 = train_clip(model_4, clip_train_ds, clip_val_ds,
+                       epochs=10, batch_size=64, lr=1e-3, wd=1e-4,
+                       num_workers=0, device=("cuda" if torch.cuda.is_available() else "cpu"))  # REUSED
+acc_4 = evaluate_zero_shot(trained_4, clip_test_loader, device=("cuda" if torch.cuda.is_available() else "cpu"))
+print(f"(4) ResNet50 + MAC(hex→learnable)+LOC(RFF) TEST top-1: {acc_4*100:.2f}%")
+
+#%% OPTUNA HPO for CNN_2, CLIP_CNN_MAC, CLIP_CNN_MAC_LOC, CLIP_RESNET_MAC, CLIP_RESNET_MAC_LOC
+
+HPO_OUTDIR = Path("hpo_results")
+HPO_OUTDIR.mkdir(parents=True, exist_ok=True)
+
+SAVE_TRIALS_CSV   = True   # set False if you don’t want CSVs
+SAVE_CHECKPOINTS  = True   # set False if you don’t want .ckpt files
+
+
+# ===================== launch studies =====================
+STUDY_TRIALS = 100  # adjust per compute
+
+#%% Optimzing CNN_2 classifier
+# study_0: CNN_2 classifier
+print("Now urnning study_0 for CNN_2_CLASSIFIER")
+study_0 = run_study_cnn2("CNN2_CLASSIFIER", n_trials=STUDY_TRIALS, seed=SEED)
+# save best VAL params right away
+save_study_best(study_0, "CNN2_CLASSIFIER")
+# retrain + TEST, then append test result to JSON and save checkpoint
+test_0  = retrain_and_test_cnn2(study_0.best_trial.params, study_name="CNN2_CLASSIFIER")
+save_study_best(study_0, "CNN2_CLASSIFIER", extra={"final_test_top1": float(test_0)})
+print(f"[study_0] TEST top-1 (best params): {test_0*100:.2f}%")
+
+#%% Optimzing CLIP_CNN_MAC
+# study_1: CLIP_CNN_MAC
+print("Now urnning study_1 for CLIP_CNN_MAC")
+study_1 = run_study(objective_clip_cnn_mac, "CLIP_CNN_MAC", n_trials=STUDY_TRIALS, seed=SEED)
+save_study_best(study_1, "CLIP_CNN_MAC")
+test_1  = retrain_and_test(study_1.best_trial.params, is_resnet=False, use_location=False, study_name="CLIP_CNN_MAC")
+save_study_best(study_1, "CLIP_CNN_MAC", extra={"final_test_top1": float(test_1)})
+print(f"[study_1] TEST top-1 (best params): {test_1*100:.2f}%")
+
+#%% Optimzing CLIP_CNN_MAC_LOC
+# study_2: CLIP_CNN_MAC_LOC
+print("Now urnning study_2 for CLIP_CNN_MAC_LOC")
+study_2 = run_study(objective_clip_cnn_mac_loc, "CLIP_CNN_MAC_LOC", n_trials=STUDY_TRIALS, seed=SEED)
+save_study_best(study_2, "CLIP_CNN_MAC_LOC")
+test_2  = retrain_and_test(study_2.best_trial.params, is_resnet=False, use_location=True, study_name="CLIP_CNN_MAC_LOC")
+save_study_best(study_2, "CLIP_CNN_MAC_LOC", extra={"final_test_top1": float(test_2)})
+print(f"[study_2] TEST top-1 (best params): {test_2*100:.2f}%")
+
+
+#%% Optimzing CLIP_RESNET_MAC
+# study_3: CLIP_RESNET_MAC
+print("Now urnning study_3 for CLIP_RESNET_MAC")
+study_3 = run_study(objective_clip_resnet_mac, "CLIP_RESNET_MAC", n_trials=STUDY_TRIALS, seed=SEED)
+save_study_best(study_3, "CLIP_RESNET_MAC")
+test_3  = retrain_and_test(study_3.best_trial.params, is_resnet=True, use_location=False, study_name="CLIP_RESNET_MAC")
+save_study_best(study_3, "CLIP_RESNET_MAC", extra={"final_test_top1": float(test_3)})
+print(f"[study_3] TEST top-1 (best params): {test_3*100:.2f}%")
+
+
+#%% Optimzing CLIP_RESNET_MAC_LOC
+# study_4: CLIP_RESNET_MAC_LOC
+print("Now urnning study_4 for CLIP_RESNET_MAC_LOC")
+study_4 = run_study(objective_clip_resnet_mac_loc, "CLIP_RESNET_MAC_LOC", n_trials=STUDY_TRIALS, seed=SEED)
+save_study_best(study_4, "CLIP_RESNET_MAC_LOC")
+test_4  = retrain_and_test(study_4.best_trial.params, is_resnet=True, use_location=True, study_name="CLIP_RESNET_MAC_LOC")
+save_study_best(study_4, "CLIP_RESNET_MAC_LOC", extra={"final_test_top1": float(test_4)})
+print(f"[study_4] TEST top-1 (best params): {test_4*100:.2f}%")
+
+#%% Optimizing RESNET50CSI_CLASSIFIER  (study_5)
+print("Now urnning study_5 for RESNET50CSI_CLASSIFIER")
+study_5 = run_study_resnet50csi("RESNET50CSI_CLASSIFIER", n_trials=STUDY_TRIALS, seed=SEED)
+save_study_best(study_5, "RESNET50CSI_CLASSIFIER")
+test_5  = retrain_and_test_resnet50csi(study_5.best_trial.params, study_name="RESNET50CSI_CLASSIFIER")
+save_study_best(study_5, "RESNET50CSI_CLASSIFIER", extra={"final_test_top1": float(test_5)})
+print(f"[study_5] TEST top-1 (best params): {test_5*100:.2f}%")
