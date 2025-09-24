@@ -18,6 +18,8 @@ from torchvision import models
 from torchvision.models import ResNet50_Weights
 import hashlib
 import math
+import torch.nn as nn
+import torch.nn.functional as F
 
 ###############################################################################
 ###############################################################################
@@ -50,13 +52,6 @@ class SimpleCNN(nn.Module):
 
 ###############################################################################
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
 
 class CNN_2(nn.Module):
     def __init__(self, num_classes: int, in_ch: int = 2, proj_dim: int = 256, l2norm: bool = True):
