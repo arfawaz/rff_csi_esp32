@@ -850,7 +850,7 @@ if True:
     }
 
 #%% Optimzing CNN_2 classifier
-if True:
+if False:
     # study_0: CNN_2 classifier
     print("Now urnning study_0 for CNN_2_CLASSIFIER")
 
@@ -885,7 +885,7 @@ if True:
 
 
 #%% Optimzing CLIP_CNN_MAC
-if False:
+if True:
     # study_1: CLIP_CNN_MAC
     print("Now urnning study_1 for CLIP_CNN_MAC")
 
@@ -911,7 +911,7 @@ if False:
 
 
 #%% Optimzing CLIP_CNN_MAC_LOC
-if False:
+if True:
     # study_2: CLIP_CNN_MAC_LOC
     print("Now urnning study_2 for CLIP_CNN_MAC_LOC")
 
@@ -939,7 +939,7 @@ if False:
 
 
 #%% Optimzing CLIP_RESNET_MAC
-if False:
+if True:
     # study_3: CLIP_RESNET_MAC
     print("Now urnning study_3 for CLIP_RESNET_MAC")
 
@@ -965,7 +965,7 @@ if False:
 
 
 #%% Optimzing CLIP_RESNET_MAC_LOC
-if False:
+if True:
     # study_4: CLIP_RESNET_MAC_LOC
     print("Now urnning study_4 for CLIP_RESNET_MAC_LOC")
 
@@ -993,7 +993,7 @@ if False:
 
 
 #%% Optimizing RESNET50CSI_CLASSIFIER  (study_5)
-if False:
+if True:
     print("Now urnning study_5 for RESNET50CSI_CLASSIFIER")
 
     objective_5 = make_objective_resnet50csi_classifier(
