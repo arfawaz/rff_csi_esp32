@@ -381,13 +381,9 @@ if True:
     
 ##############################################################################
 
-#%% CSI_CLIP with CNN_2 CSI enoder with MAC hex -> learnable projector 
+    #%% mac_to_xyz
 
-if False:
-    # ======= Reuse EXACT SAME loaders/splits you already created =======
-    # clip_train_ds, clip_val_ds, clip_test_loader come from your code.
-    
-    # Provide MAC → (x,y,z) dict (meters), keys must match MAC_ID_LIST entries:
+if True:
     mac_to_xyz = {
         "00:FC:BA:38:4B:00": (19.61, 18.60, 4),
         "00:FC:BA:38:4B:01": (19.61, 18.60, 4),
@@ -398,21 +394,7 @@ if False:
         "70:0F:6A:DE:EC:A1": (15.66, 11.30, 4),
         "70:0F:6A:DE:EC:A2": (15.66, 11.30, 4),
     }
-    
-    num_classes = len(MAC_ID_LIST)
-    
-    # ---------------------------
-    # (1) CSI = 2-layer CNN; Label = MAC hex → learnable projector
-    # ---------------------------
-    model_1 = CSI_CLIP(
-        csi_encoder=CSIEncoder(in_ch=2, proj_dim=256),                 # REUSED encoder (CNN) :contentReference[oaicite:7]{index=7}
-        label_encoder=LabelHexProjector(MAC_ID_LIST, dim=256, hex_dim=64)  # NEW
-    )
-    trained_1 = train_clip(model_1, clip_train_ds, clip_val_ds,
-                           epochs=10, batch_size=64, lr=1e-3, wd=1e-4,
-                           num_workers=0, device=("cuda" if torch.cuda.is_available() else "cpu"))  # REUSED loop :contentReference[oaicite:8]{index=8}
-    acc_1 = evaluate_zero_shot(trained_1, clip_test_loader, device=("cuda" if torch.cuda.is_available() else "cpu"))
-    print(f"(1) CNN + MAC(hex→learnable) TEST top-1: {acc_1*100:.2f}%")
+
 
 #%%
 
