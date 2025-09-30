@@ -111,6 +111,104 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+class CSIEncoder3(nn.Module):
+    """
+    3-layer 1D CNN encoder for CSI shaped [B, 2, 64].
+    - backbone: Conv1d(2->64)->ReLU -> Conv1d(64->128)->ReLU -> Conv1d(128->192)->ReLU
+    - forward_features(): returns [B, 192, L] (L≈64 with same padding)
+    - forward(): GAP -> Linear(192->proj_dim) -> LayerNorm -> L2 normalize  (CLIP embedding)
+    """
+    def __init__(self, in_ch: int = 2, proj_dim: int = 256, use_bn: bool = False, dropout: float = 0.0):
+        super().__init__()
+        Conv = nn.Conv1d
+        layers = []
+        def block(c_in, c_out):
+            m = [Conv(c_in, c_out, kernel_size=5, padding=2), nn.ReLU(inplace=True)]
+            if use_bn: m.insert(1, nn.BatchNorm1d(c_out))
+            return m
+        layers += block(in_ch, 64)
+        layers += block(64, 128)
+        layers += block(128, 192)
+        self.backbone = nn.Sequential(*layers)
+        self.pool     = nn.AdaptiveAvgPool1d(1)
+        self.dropout  = nn.Dropout(p=dropout) if dropout > 0 else nn.Identity()
+        self.proj     = nn.Linear(192, proj_dim)
+        self.norm     = nn.LayerNorm(proj_dim)
+
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
+        # x: [B, 2, 64]  ->  [B, 192, 64]
+        return self.backbone(x.float())
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        fm = self.forward_features(x)          # [B, 192, L]
+        h  = self.pool(fm).squeeze(-1)         # [B, 192]
+        h  = self.dropout(h)
+        z  = self.norm(self.proj(h))           # [B, D]
+        return F.normalize(z, dim=-1)
+
+import math
+
+class CSI_CLIP_WithConvClassifier3(nn.Module):
+    """
+    CLIP-style model (contrastive CSI↔label) + 3-layer conv-only classifier head.
+    - Uses CSIEncoder3.forward_features() for the classifier path.
+    - contrastive path identical to CSI_CLIP.
+    """
+    def __init__(self, csi_encoder: nn.Module, label_encoder: nn.Module, num_classes: int,
+                 head_hidden=(256, 256, 256), head_dropout: float = 0.0, head_bn: bool = False):
+        super().__init__()
+        self.csi = csi_encoder          # expect CSIEncoder3 (or compatible with forward_features)
+        self.txt = label_encoder
+        self.cls_head = ConvOnlyClassifier1D_3L(num_classes, hidden=head_hidden,
+                                                dropout=head_dropout, use_bn=head_bn)
+        self.logit_scale = nn.Parameter(torch.tensor(math.log(1/0.07)))
+
+    def forward(self, x_bcl: torch.Tensor, y_idx: torch.Tensor):
+        feat_map   = self.csi.forward_features(x_bcl)   # [B, 192, L]
+        cls_logits = self.cls_head(feat_map)            # [B, C]
+
+        zc = self.csi(x_bcl)                            # [B, D] (proj_dim, L2 norm)
+        zt = self.txt(y_idx)                            # [B, D] (L2 norm)
+        scale = self.logit_scale.exp().clamp(max=100.0)
+        clip_logits = scale * (zc @ zt.t())             # [B, B]
+
+        return clip_logits, cls_logits, zc, zt
+
+
+
+class ConvOnlyClassifier1D_3L(nn.Module):
+    """
+    3-layer conv head over encoder feature map [B, 192, L]:
+      Conv1d(192->256, k=3) -> ReLU
+      Conv1d(256->256, k=3) -> ReLU
+      Conv1d(256->256, k=3) -> ReLU
+      GAP -> Conv1d(256->C, k=1) -> squeeze -> [B, C]
+    """
+    def __init__(self, num_classes: int, hidden=(256, 256, 256), dropout: float = 0.0, use_bn: bool = False):
+        super().__init__()
+        c1, c2, c3 = hidden
+        def cb(c_in, c_out):
+            m = [nn.Conv1d(c_in, c_out, kernel_size=3, padding=1), nn.ReLU(inplace=True)]
+            if use_bn: m.insert(1, nn.BatchNorm1d(c_out))
+            return m
+        self.conv = nn.Sequential(
+            *cb(192, c1),
+            *cb(c1,  c2),
+            *cb(c2,  c3),
+            nn.AdaptiveAvgPool1d(1),
+            nn.Dropout(p=dropout) if dropout > 0 else nn.Identity(),
+            nn.Conv1d(c3, num_classes, kernel_size=1)
+        )
+
+    def forward(self, feat_map: torch.Tensor) -> torch.Tensor:
+        return self.conv(feat_map).squeeze(-1)   # [B, C]
+
+
+
 # --- PATCHED: CSIEncoder with forward_features() ---
 class CSIEncoder(nn.Module):
     """
@@ -576,52 +674,40 @@ clip_only, best_val = train_clip_mtl(
 torch.save({"model": clip_only.state_dict()}, "ckpts/clip_pretrained.pth")
 #%%
 
-# ---- build CLIP+conv classifier wrapper and load encoders from Stage-1 ----
-conv_head_model = CSI_CLIP_WithConvClassifier(
-    csi_encoder=CSIEncoder(in_ch=2, proj_dim=256),          # same arch as Stage-1
-    label_encoder=LabelHexProjector(MAC_ID_LIST, dim=256, hex_dim=64),
+# Build the parts
+num_classes = len(MAC_ID_LIST)
+csi_side   = CSIEncoder3(in_ch=2, proj_dim=256, use_bn=False, dropout=0.0)  # NEW 3-layer encoder
+label_side = LabelHexProjector(MAC_ID_LIST, dim=256, hex_dim=64)            # or LabelHexPlusLoc(...)
+
+model = CSI_CLIP_WithConvClassifier3(
+    csi_encoder=csi_side,
+    label_encoder=label_side,
     num_classes=num_classes,
-    head_hidden=(256,256), head_dropout=0.0
+    head_hidden=(256,256,256), head_dropout=0.0, head_bn=False
 )
 
-# load encoders from Stage-1
-state = torch.load("ckpts/clip_pretrained.pth", map_location="cpu")
-missing, unexpected = conv_head_model.load_state_dict(state["model"], strict=False)
-# it's fine if classifier weights are missing (new head)
-print("missing:", missing, "unexpected:", unexpected)
-
-# ---- freeze CLIP parts; train only classifier head ----
-for p in conv_head_model.csi.parameters():         p.requires_grad = False
-for p in conv_head_model.txt.parameters():         p.requires_grad = False
-if hasattr(conv_head_model, "logit_scale"):        conv_head_model.logit_scale.requires_grad = False
-# keep conv_head params trainable (default requires_grad=True)
-
-# train classifier only (no contrastive; no zero-shot eval)
-conv_head_model, best_metrics = train_clip_mtl(
-    model=conv_head_model,
-    train_ds=clip_train_ds, val_ds=clip_val_ds,
+# Train both losses together
+model, best = train_clip_mtl(
+    model=model,
+    train_ds=clip_train_ds,
+    val_ds=clip_val_ds,
     num_classes=num_classes,
-    epochs=8, batch_size=64, lr=1e-3, wd=1e-4,
-    w_clip=0.0, w_cls=1.0,                            # <<< classifier only
+    epochs=10, batch_size=64, lr=1e-3, wd=1e-4,
+    w_clip=1.0, w_cls=1.0,                           # multitask; or set w_clip=0.0 for classifier-only
     device=("cuda" if torch.cuda.is_available() else "cpu"),
-    evaluate_zero_shot_fn=None
+    evaluate_zero_shot_fn=evaluate_zero_shot         # or None if classifier-only
 )
 
-# evaluate classifier on TEST
+# Test classifier head
 from torch.utils.data import DataLoader
 device = "cuda" if torch.cuda.is_available() else "cpu"
 test_loader = DataLoader(clip_test_ds, batch_size=64, shuffle=False, num_workers=0, pin_memory=True)
 
-conv_head_model.eval(); correct=total=0
+model.eval(); correct=total=0
 with torch.no_grad():
     for xb, yb in test_loader:
         xb, yb = xb.to(device), yb.to(device)
-        _, cls_logits, _, _ = conv_head_model(xb, yb)   # returns (clip_logits, cls_logits, zc, zt)
+        _, cls_logits, _, _ = model(xb, yb)
         pred = cls_logits.argmax(1)
         correct += (pred==yb).sum().item(); total += yb.numel()
-print(f"[Stage-2 CNN head] TEST top-1: {100*correct/max(1,total):.2f}%")
-
-# save final classifier
-torch.save({"model": conv_head_model.state_dict()}, "ckpts/clip_convhead_trained.pth")
-    
-
+print(f"[3-layer enc + 3-layer head] TEST top-1: {100*correct/max(1,total):.2f}%")
