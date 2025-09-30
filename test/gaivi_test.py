@@ -111,6 +111,93 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+# --- PATCHED: CSIEncoder with forward_features() ---
+class CSIEncoder(nn.Module):
+    """
+    1D Conv encoder for CSI shaped [B, 2, 64].
+    Now exposes forward_features() -> [B, 128, L] so a conv head can classify
+    without a Linear layer.
+    """
+    def __init__(self, in_ch=2, proj_dim=256):
+        super().__init__()
+        self.backbone = nn.Sequential(
+            nn.Conv1d(in_channels=in_ch, out_channels=64,  kernel_size=5, padding=2), nn.ReLU(),
+            nn.Conv1d(in_channels=64,    out_channels=128, kernel_size=5, padding=2), nn.ReLU(),
+        )
+        self.pool = nn.AdaptiveAvgPool1d(1)     # -> [B, 128, 1]
+        self.proj = nn.Linear(128, proj_dim)
+        self.norm = nn.LayerNorm(proj_dim)
+
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Returns the pre-pooled feature map: [B, 128, L] (L ≈ 64 here).
+        """
+        return self.backbone(x.float())
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        fm = self.forward_features(x)           # [B, 128, L]
+        h  = self.pool(fm).squeeze(-1)          # [B, 128]
+        z  = self.norm(self.proj(h))            # [B, D]
+        return F.normalize(z, dim=-1)           # unit norm
+
+class ConvOnlyClassifier1D(nn.Module):
+    """
+    All-conv classifier:
+      [B,128,L] -> Conv1d(128,256,3) -> ReLU
+                 -> Conv1d(256,256,3) -> ReLU
+                 -> GAP -> [B,256,1]
+                 -> Conv1d(256,num_classes,1) -> [B,C,1] -> squeeze -> [B,C]
+    """
+    def __init__(self, num_classes: int, hidden=(256, 256), dropout: float = 0.0):
+        super().__init__()
+        h1, h2 = hidden
+        self.conv = nn.Sequential(
+            nn.Conv1d(128, h1, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(h1,  h2, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.AdaptiveAvgPool1d(1),                 # -> [B, h2, 1]
+            nn.Dropout(p=dropout) if dropout > 0 else nn.Identity(),
+            nn.Conv1d(h2, num_classes, kernel_size=1)  # 1x1 conv replaces Linear
+        )
+
+    def forward(self, feat_map: torch.Tensor) -> torch.Tensor:
+        # feat_map: [B, 128, L]
+        logits = self.conv(feat_map).squeeze(-1)  # [B, C]
+        return logits
+
+import math
+
+class CSI_CLIP_WithConvClassifier(nn.Module):
+    """
+    CLIP contrastive branch + conv-only classifier head (no Linear).
+    - Uses CSIEncoder.forward_features() for the conv head.
+    - Contrastive head identical to your CSI_CLIP.
+    """
+    def __init__(self, csi_encoder: nn.Module, label_encoder: nn.Module, num_classes: int,
+                 head_hidden=(256, 256), head_dropout: float = 0.0):
+        super().__init__()
+        self.csi = csi_encoder
+        self.txt = label_encoder
+        self.cls_head = ConvOnlyClassifier1D(num_classes, hidden=head_hidden, dropout=head_dropout)
+        self.logit_scale = nn.Parameter(torch.tensor(math.log(1/0.07)))
+
+    def forward(self, x_bcl: torch.Tensor, y_idx: torch.Tensor):
+        # Conv-only classifier path
+        feat_map   = self.csi.forward_features(x_bcl)  # [B,128,L]
+        cls_logits = self.cls_head(feat_map)           # [B,C]
+
+        # CLIP path
+        zc = self.csi(x_bcl)                           # [B,D] (unit norm)
+        zt = self.txt(y_idx)                           # [B,D] (unit norm)
+        scale = self.logit_scale.exp().clamp(max=100.0)
+        clip_logits = scale * (zc @ zt.t())            # [B,B]
+
+        return clip_logits, cls_logits, zc, zt
+
+
+
+
 class CSI_CLIP_WithClassifier(nn.Module):
     """
     Reuses your CLIP components and adds a linear classifier on the CSI side.
@@ -158,6 +245,10 @@ class CSI_CLIP_WithClassifier(nn.Module):
 # === NEW: multi-task training loop ===
 from torch.utils.data import DataLoader
 
+from torch.utils.data import DataLoader
+import torch
+import torch.nn as nn
+
 def train_clip_mtl(model,
                    train_ds,
                    val_ds,
@@ -174,12 +265,23 @@ def train_clip_mtl(model,
                    print_every: int = 1,
                    evaluate_zero_shot_fn=None):
     """
-    Trains CLIP contrastive + supervised classifier together.
+    Multi-task trainer for CLIP(+optional classifier) models.
 
     Loss = w_clip * clip_loss(clip_logits) + w_cls * CrossEntropy(cls_logits, y)
 
-    evaluate_zero_shot_fn: function(model, val_loader, device) -> float in [0,1]
-      You already have: evaluate_zero_shot(model, val_loader, device)
+    Model forward flexibility:
+      - If model returns (clip_logits, cls_logits, zc, zt), both heads are used.
+      - If it returns (clip_logits, cls_logits), both heads are used.
+      - If it returns only cls_logits, only classifier loss is used (set w_clip=0).
+
+    Validation:
+      - If evaluate_zero_shot_fn is provided and model can produce CLIP outputs,
+        we compute zero-shot val accuracy.
+      - We always compute classifier val accuracy if cls head/logits exist.
+
+    Returns:
+      model (with best state loaded by chosen metric),
+      best_metrics dict: {"val_clip_acc": float or None, "val_cls_acc": float or None}
     """
     device = torch.device(device if torch.cuda.is_available() else "cpu")
     model.to(device)
@@ -189,84 +291,140 @@ def train_clip_mtl(model,
     val_loader   = DataLoader(val_ds,   batch_size=batch_size, shuffle=False,
                               drop_last=False, num_workers=num_workers, pin_memory=True)
 
-    opt = torch.optim.AdamW([
-        {"params": model.csi.parameters()},
-        {"params": model.txt.parameters()},
-        {"params": [model.logit_scale]},
-        {"params": model.cls.parameters()},
-    ], lr=lr, weight_decay=wd)
+    # ---------------- Param groups (robust to different model variants) ----------------
+    param_groups = []
+    if hasattr(model, "csi"):          param_groups.append({"params": model.csi.parameters()})
+    if hasattr(model, "txt"):          param_groups.append({"params": model.txt.parameters()})
+    if hasattr(model, "logit_scale"):  param_groups.append({"params": [model.logit_scale]})
+    if hasattr(model, "cls"):          param_groups.append({"params": model.cls.parameters()})       # linear head
+    if hasattr(model, "cls_head"):     param_groups.append({"params": model.cls_head.parameters()})  # conv-only head
 
+    # filter out empty groups in case parts are frozen
+    param_groups = [g for g in param_groups if any(p.requires_grad for p in g["params"])]
+    assert len(param_groups) > 0, "No trainable parameters found!"
+
+    opt = torch.optim.AdamW(param_groups, lr=lr, weight_decay=wd)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=epochs)
     ce = nn.CrossEntropyLoss()
 
-    best_val_clip = 0.0
-    best_state = None
+    from utilities.losses import clip_loss  # reuse your existing CLIP loss
 
-    for ep in range(1, epochs+1):
+    best_metric = -1.0
+    best_state  = None
+    best_metrics_snapshot = {"val_clip_acc": None, "val_cls_acc": None}
+
+    for ep in range(1, epochs + 1):
         model.train()
-        total = 0.0
-        n_seen = 0
+        total_loss = 0.0
+        total_seen = 0
 
         for xb, yb in train_loader:
             xb = xb.to(device, non_blocking=True)
             yb = yb.to(device, non_blocking=True)
 
-            clip_logits, cls_logits, _, _ = model(xb, yb)
+            out = model(xb, yb)
+            # Normalize outputs to a common tuple form
+            clip_logits, cls_logits = None, None
+            if isinstance(out, (list, tuple)):
+                if len(out) >= 2:
+                    clip_logits, cls_logits = out[0], out[1]
+                elif len(out) == 1:
+                    cls_logits = out[0]
+            else:
+                # classifier-only forward returning logits
+                cls_logits = out
 
-            # Your symmetric CLIP loss (mac↔csi both directions)
-            loss_clip = clip_loss(clip_logits)
-            loss_cls  = ce(cls_logits, yb)
+            loss = 0.0
+            if (w_clip > 0.0) and (clip_logits is not None):
+                loss = loss + w_clip * clip_loss(clip_logits)
+            if (w_cls  > 0.0) and (cls_logits  is not None):
+                loss = loss + w_cls  * ce(cls_logits, yb)
 
-            loss = w_clip * loss_clip + w_cls * loss_cls
+            # If neither head contributed, raise a helpful error
+            if loss == 0.0:
+                raise RuntimeError(
+                    "No loss terms active. Ensure w_clip>0 with clip logits available and/or w_cls>0 with cls logits."
+                )
 
             opt.zero_grad(set_to_none=True)
             loss.backward()
             opt.step()
 
-            total += loss.item() * xb.size(0)
-            n_seen += xb.size(0)
+            total_loss += loss.item() * xb.size(0)
+            total_seen += xb.size(0)
 
         scheduler.step()
-        avg_loss = total / max(1, n_seen)
+        avg_loss = total_loss / max(1, total_seen)
 
-        # Validation: (1) zero-shot CLIP acc, (2) classifier acc
+        # ---------------- Validation ----------------
         model.eval()
-        # (1) zero-shot (uses your existing routine)
+        # (A) zero-shot CLIP accuracy (optional)
         val_clip_acc = None
-        if evaluate_zero_shot_fn is not None:
-            val_clip_acc = evaluate_zero_shot_fn(model, val_loader, device=device)
+        can_eval_clip = (evaluate_zero_shot_fn is not None) and hasattr(model, "txt") and hasattr(model, "csi")
+        if can_eval_clip:
+            try:
+                val_clip_acc = evaluate_zero_shot_fn(model, val_loader, device=device)
+            except Exception:
+                # If model does not expose encode/class_table paths expected by your evaluator, skip
+                val_clip_acc = None
 
-        # (2) classifier accuracy
-        correct = 0
-        total   = 0
-        with torch.no_grad():
-            for xb, yb in val_loader:
-                xb = xb.to(device, non_blocking=True)
-                yb = yb.to(device, non_blocking=True)
-                _, cls_logits, _, _ = model(xb, yb)
-                pred = cls_logits.argmax(dim=1)
-                correct += (pred == yb).sum().item()
-                total   += yb.numel()
-        val_cls_acc = correct / max(1, total)
+        # (B) classifier accuracy (if head/logits exist)
+        val_cls_acc = None
+        if hasattr(model, "cls") or hasattr(model, "cls_head") or (w_cls > 0.0):
+            correct = 0
+            total   = 0
+            with torch.no_grad():
+                for xb, yb in val_loader:
+                    xb = xb.to(device, non_blocking=True)
+                    yb = yb.to(device, non_blocking=True)
+                    out = model(xb, yb)
+                    # pull classifier logits robustly
+                    cls_logits = None
+                    if isinstance(out, (list, tuple)):
+                        if len(out) >= 2:
+                            cls_logits = out[1]
+                        elif len(out) == 1:
+                            cls_logits = out[0]
+                    else:
+                        cls_logits = out
+                    if cls_logits is None:
+                        continue
+                    pred = cls_logits.argmax(dim=1)
+                    correct += (pred == yb).sum().item()
+                    total   += yb.numel()
+            if total > 0:
+                val_cls_acc = correct / total
 
+        # Logging
         if (ep % print_every) == 0:
+            parts = [f"[Ep {ep:02d}] loss={avg_loss:.4f}"]
             if val_clip_acc is not None:
-                print(f"[Ep {ep:02d}] loss={avg_loss:.4f}  val-CLIP@1={val_clip_acc*100:.2f}%  "
-                      f"val-CLS@1={val_cls_acc*100:.2f}%  logit_scale={model.logit_scale.exp().item():.3f}")
-            else:
-                print(f"[Ep {ep:02d}] loss={avg_loss:.4f}  val-CLS@1={val_cls_acc*100:.2f}%  "
-                      f"logit_scale={model.logit_scale.exp().item():.3f}")
+                parts.append(f"val-CLIP@1={val_clip_acc*100:.2f}%")
+            if val_cls_acc is not None:
+                parts.append(f"val-CLS@1={val_cls_acc*100:.2f}%")
+            if hasattr(model, "logit_scale"):
+                parts.append(f"logit_scale={model.logit_scale.exp().item():.3f}")
+            print("  ".join(parts))
 
-        # Track best by zero-shot if available; otherwise by classifier
-        metric = val_clip_acc if (val_clip_acc is not None) else val_cls_acc
-        if metric is not None and metric > best_val_clip:
-            best_val_clip = metric
-            best_state = {k: v.cpu() for k, v in model.state_dict().items()}
+        # Choose selection metric:
+        #   Prefer zero-shot if available; otherwise fall back to classifier acc; otherwise to low loss proxy
+        if val_clip_acc is not None:
+            metric_now = val_clip_acc
+        elif val_cls_acc is not None:
+            metric_now = val_cls_acc
+        else:
+            # if nothing available, invert loss (lower is better)
+            metric_now = 1.0 / (1e-9 + avg_loss)
+
+        if metric_now > best_metric:
+            best_metric = metric_now
+            best_state  = {k: v.detach().cpu() for k, v in model.state_dict().items()}
+            best_metrics_snapshot = {"val_clip_acc": val_clip_acc, "val_cls_acc": val_cls_acc}
 
     if best_state is not None:
         model.load_state_dict(best_state)
 
-    return model, best_val_clip
+    return model, best_metrics_snapshot
 
 ###############################################################################
 
@@ -397,53 +555,24 @@ if True:
 
 
 #%%
-
-# --- Example: CNN CSI encoder + MAC hex label encoder, multi-task ---
 num_classes = len(MAC_ID_LIST)
+csi_side   = CSIEncoder(in_ch=2, proj_dim=256)                  # patched encoder (above)
+label_side = LabelHexProjector(MAC_ID_LIST, dim=256, hex_dim=64)  # or LabelHexPlusLoc
 
-csi_side   = CSIEncoder(in_ch=2, proj_dim=256)                     # REUSED
-label_side = LabelHexProjector(MAC_ID_LIST, dim=256, hex_dim=64)   # REUSED
-
-model_mtl = CSI_CLIP_WithClassifier(
+model = CSI_CLIP_WithConvClassifier(
     csi_encoder=csi_side,
     label_encoder=label_side,
-    num_classes=num_classes
-)
-
-# Train both losses together
-model_mtl, _ = train_clip_mtl(
-    model=model_mtl,
-    train_ds=clip_train_ds,
-    val_ds=clip_val_ds,
     num_classes=num_classes,
-    epochs=20,
-    batch_size=64,
-    lr=1e-3,
-    wd=1e-4,
-    w_clip=1.0,      # weight on CLIP contrastive
-    w_cls=1.0,       # weight on classifier CE
-    device=("cuda" if torch.cuda.is_available() else "cpu"),
-    evaluate_zero_shot_fn=evaluate_zero_shot  # REUSED
+    head_hidden=(256,256), head_dropout=0.0
 )
 
-# Evaluate both heads on the TEST set
-from torch.utils.data import DataLoader
-test_loader = DataLoader(clip_test_ds, batch_size=64, shuffle=False, num_workers=0, pin_memory=True)
-device = "cuda" if torch.cuda.is_available() else "cpu"
-
-# (A) zero-shot accuracy (CLIP retrieval)
-zs_acc = evaluate_zero_shot(model_mtl, test_loader, device=device)
-print(f"[MTL] TEST zero-shot top-1: {zs_acc*100:.2f}%")
-
-# (B) classifier accuracy (direct CSI→class)
-model_mtl.eval()
-correct = 0; total = 0
-with torch.no_grad():
-    for xb, yb in test_loader:
-        xb = xb.to(device); yb = yb.to(device)
-        _, cls_logits, _, _ = model_mtl(xb, yb)
-        pred = cls_logits.argmax(dim=1)
-        correct += (pred == yb).sum().item()
-        total += yb.numel()
-cls_acc = correct / max(1, total)
-print(f"[MTL] TEST classifier top-1: {cls_acc*100:.2f}%")
+# reuse the multi-task trainer you already have
+model, _ = train_clip_mtl(
+    model=model,
+    train_ds=clip_train_ds, val_ds=clip_val_ds,
+    num_classes=num_classes,
+    epochs=20, batch_size=64, lr=1e-3, wd=1e-4,
+    w_clip=1.0, w_cls=1.0,                   # <<< tune these weights
+    device=("cuda" if torch.cuda.is_available() else "cpu"),
+    evaluate_zero_shot_fn=evaluate_zero_shot # or None if you don't care about zero-shot
+)
