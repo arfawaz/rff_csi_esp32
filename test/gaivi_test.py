@@ -11,7 +11,7 @@ Created on Tue Sep 30 12:39:49 2025
 import sys
 from pathlib import Path
 
-_PROJECT_ROOT = Path(__file__).resolve().parent  # folder that contains /utilities and /models
+_PROJECT_ROOT = Path(__file__).resolve().parents[1] # folder that contains /utilities and /models
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 # -------------------------------------------------------------------------
