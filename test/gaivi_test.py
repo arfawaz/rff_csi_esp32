@@ -652,28 +652,6 @@ if True:
 
 #%%
 # ---- build CLIP (no classifier needed here) ----
-num_classes = len(MAC_ID_LIST)
-csi_side   = CSIEncoder(in_ch=2, proj_dim=256)                         # your patched encoder w/ forward_features
-label_side = LabelHexProjector(MAC_ID_LIST, dim=256, hex_dim=64)       # or LabelHexPlusLoc(...)
-
-# simple CLIP model (no classifier head) — reuse your original CSI_CLIP
-clip_only = CSI_CLIP(csi_encoder=csi_side, label_encoder=label_side)
-
-# train CLIP contrastive only (no classifier loss)
-clip_only, best_val = train_clip_mtl(
-    model=clip_only,
-    train_ds=clip_train_ds, val_ds=clip_val_ds,
-    num_classes=num_classes,
-    epochs=10, batch_size=64, lr=1e-3, wd=1e-4,
-    w_clip=1.0, w_cls=0.0,                         # <<< contrastive only
-    device=("cuda" if torch.cuda.is_available() else "cpu"),
-    evaluate_zero_shot_fn=evaluate_zero_shot       # optional metric
-)
-
-# save the pretrained CLIP encoders
-torch.save({"model": clip_only.state_dict()}, "ckpts/clip_pretrained.pth")
-#%%
-
 # Build the parts
 num_classes = len(MAC_ID_LIST)
 csi_side   = CSIEncoder3(in_ch=2, proj_dim=256, use_bn=False, dropout=0.0)  # NEW 3-layer encoder
@@ -711,3 +689,4 @@ with torch.no_grad():
         pred = cls_logits.argmax(1)
         correct += (pred==yb).sum().item(); total += yb.numel()
 print(f"[3-layer enc + 3-layer head] TEST top-1: {100*correct/max(1,total):.2f}%")
+
